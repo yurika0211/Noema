@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ type stubEngine struct {
 	sessionID string
 	events    []engine.RunEvent
 	cancelled chan string
+	starts    atomic.Int32
 }
 
 func (s *stubEngine) NewSession(context.Context) (string, error) { return s.sessionID, nil }
@@ -39,6 +41,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, req engine.RunRequest) (<-ch
 	if req.Message == "" {
 		return nil, engine.ErrInvalidRequest
 	}
+	s.starts.Add(1)
 	ch := make(chan engine.RunEvent, len(s.events))
 	go func() {
 		defer close(ch)

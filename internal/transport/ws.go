@@ -276,19 +276,22 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// replay 只读地把 last_seq 之后的事件推给客户端。
+// replay_complete 是控制帧，不落盘也不占 seq：重连不该改写事件日志。
 func (s *Server) replay(conn *wsConn, sessionID string, env protocol.Envelope) {
 	var body protocol.ReplayPayload
 	_ = json.Unmarshal(env.Payload, &body)
 	for _, ev := range s.Log.After(sessionID, body.LastSeq) {
 		_ = writeJSON(conn, ev)
 	}
-	complete, _ := s.Log.Append(sessionID, protocol.Envelope{
+	_ = writeJSON(conn, protocol.Envelope{
+		Protocol:    protocol.Version,
 		Type:        protocol.TypeReplayComplete,
 		SessionID:   sessionID,
 		CharacterID: s.CharacterID,
+		CreatedAt:   time.Now().UTC(),
 		Payload:     eventlog.MustPayload(map[string]int64{"last_seq": s.Log.LastSeq(sessionID)}),
 	})
-	_ = writeJSON(conn, complete)
 }
 
 func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, env protocol.Envelope) (string, error) {
