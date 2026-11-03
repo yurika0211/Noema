@@ -15,6 +15,8 @@ import (
 
 	"github.com/yurika0211/Noema/internal/adapters/lucky"
 	"github.com/yurika0211/Noema/internal/engine"
+	"github.com/yurika0211/Noema/internal/eventlog"
+	"github.com/yurika0211/Noema/internal/transport"
 )
 
 func main() {
@@ -30,6 +32,8 @@ func run(args []string) error {
 	home := fs.String("home", defaultHome(), "Noema-owned Lucky Agent HomeDir; never ~/.luckyagent")
 	message := fs.String("message", "", "one-shot user message; empty starts a stdin loop")
 	sessionID := fs.String("session", "", "existing session id; empty creates one")
+	listen := fs.String("listen", "", "serve noema.v1 WebSocket on this address, e.g. 127.0.0.1:8787")
+	apiKey := fs.String("api-key", os.Getenv("NOEMA_BIND_KEY"), "optional API key for /v1/*; empty allows loopback only in this sample")
 	capsOnly := fs.Bool("capabilities", false, "print adapter capabilities as JSON and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -60,6 +64,31 @@ func run(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if strings.TrimSpace(*listen) != "" {
+		srv := &transport.Server{
+			Addr:        strings.TrimSpace(*listen),
+			APIKey:      strings.TrimSpace(*apiKey),
+			CharacterID: "hiori",
+			Engine:      adapter,
+			Log:         eventlog.New(),
+		}
+		errCh := make(chan error, 1)
+		go func() { errCh <- srv.ListenAndServe() }()
+		if err := srv.WaitReady(ctx); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "listen=%s home=%s character=hiori\n", srv.ListenAddr(), adapter.HomeDir())
+		select {
+		case <-ctx.Done():
+			return srv.Close()
+		case err := <-errCh:
+			if transport.ListenError(err) {
+				return err
+			}
+			return nil
+		}
+	}
 
 	sid := strings.TrimSpace(*sessionID)
 	if sid == "" {
