@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -124,14 +125,18 @@ func (s *Server) ListenAddr() string {
 	return s.Addr
 }
 
+// withAuth 保护 /v1/*。没有配置 NOEMA_BIND_KEY 时一律 401，而不是放行：
+// loopback 开发也必须设 key，否则真机走 LAN 时同一进程就是裸接口。
+// /healthz 不鉴权，只用来探活。
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if s.APIKey == "" {
-			next.ServeHTTP(w, r)
+		want := strings.TrimSpace(s.APIKey)
+		if want == "" {
+			http.Error(w, "unauthorized: NOEMA_BIND_KEY is not configured", http.StatusUnauthorized)
 			return
 		}
 		got := strings.TrimSpace(r.Header.Get("Authorization"))
@@ -141,7 +146,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		if got == "" {
 			got = strings.TrimSpace(r.Header.Get("X-API-Key"))
 		}
-		if got != s.APIKey {
+		if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -271,19 +276,22 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// replay 只读地把 last_seq 之后的事件推给客户端。
+// replay_complete 是控制帧，不落盘也不占 seq：重连不该改写事件日志。
 func (s *Server) replay(conn *wsConn, sessionID string, env protocol.Envelope) {
 	var body protocol.ReplayPayload
 	_ = json.Unmarshal(env.Payload, &body)
 	for _, ev := range s.Log.After(sessionID, body.LastSeq) {
 		_ = writeJSON(conn, ev)
 	}
-	complete, _ := s.Log.Append(sessionID, protocol.Envelope{
+	_ = writeJSON(conn, protocol.Envelope{
+		Protocol:    protocol.Version,
 		Type:        protocol.TypeReplayComplete,
 		SessionID:   sessionID,
 		CharacterID: s.CharacterID,
+		CreatedAt:   time.Now().UTC(),
 		Payload:     eventlog.MustPayload(map[string]int64{"last_seq": s.Log.LastSeq(sessionID)}),
 	})
-	_ = writeJSON(conn, complete)
 }
 
 func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, env protocol.Envelope) (string, error) {
