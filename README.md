@@ -46,7 +46,7 @@ GOWORK=off go run ./cmd/noema -capabilities
 - `owner + client_request_id` 的幂等记录一起落盘：相同输入复用同一 `run_id`，不同输入返回 `invalid request` 冲突。
 - 重连只重放 `seq > last_seq` 的已持久事件，不会把同一句话打成新回合。
 - `replay_complete` 是控制帧，不落盘、不占 `seq`：重连不会改写事件日志。
-- 崩溃留下的半行在装载时跳过，会话仍可继续追加。
+- 每条记录都是一个完整行；装载时末尾没有换行的崩溃残尾会被截掉，写入失败回退到上一个完整行且不推进 `seq`。
 - 这是 Noema 自己的状态目录，不是 Lucky 会话 JSON，也不写进 Lucky HomeDir。
 
 ## Android
