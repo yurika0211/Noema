@@ -1,0 +1,8 @@
+/bin/
+/data/
+/module-graph.json
+*.exe
+*.test
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,65 @@
+package lucky
+
+// deniedTools 是首版默认关闭的高风险内置工具。
+// DisableTools 只是黑名单；未知名字会被 SDK 忽略，所以真正的门控还要在
+// Open 之后再扫一遍 ListTools，把未允许的全部 Disable。
+var deniedTools = []string{
+	"terminal",
+	"file_write",
+	"file_mkdir",
+	"file_move",
+	"file_delete",
+	"file_patch",
+	"http_request",
+	"web_fetch",
+	"web_search",
+	"computer_act",
+	"computer_observe",
+	"request_credential",
+	"opencli",
+	"cron",
+	"autonomy",
+	"autonomy_queue_add",
+	"autonomy_queue_update",
+	"autonomy_worker_spawn",
+	"autonomy_heartbeat_trigger",
+	"delegate_task",
+	"delegate_to_mcp",
+	"delegate_to_skill",
+	"delegate_cancel",
+	"delegate_parallel",
+	"subagent",
+	"memory",
+	"remember",
+	"recall",
+	"memory_hygiene",
+	"rag_index",
+	"napcat_read_group",
+	"text_to_speech",
+	"image_generate",
+}
+
+// allowedReadTools 是文本验证阶段允许保持启用的只读工具。
+// 未列入且未在 denied 中的工具，Open 时一律 Disable。
+var allowedReadTools = map[string]struct{}{
+	"current_time":         {},
+	"calculate":            {},
+	"ask_user":             {},
+	"file_read":            {},
+	"file_list":            {},
+	"document_read":        {},
+	"image":                {},
+	"image_analyze":        {},
+	"rag_search":           {},
+	"data":                 {},
+	"log_file":             {},
+	"csv_query":            {},
+	"db_schema":            {},
+	"skill_read":           {},
+	"task_status":          {},
+	"list_tasks":           {},
+	"wait_for_tasks":       {},
+	"autonomy_queue_list":  {},
+	"autonomy_worker_list": {},
+	"autonomy_status":      {},
+}
