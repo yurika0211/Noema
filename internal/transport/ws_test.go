@@ -64,6 +64,76 @@ func TestAuthRejectsMissingKey(t *testing.T) {
 	}
 }
 
+func TestAuthRejectsWrongKey(t *testing.T) {
+	srv := &Server{APIKey: "secret", Engine: &stubEngine{sessionID: "s1"}, Log: eventlog.New()}
+	handler := srv.withAuth(http.HandlerFunc(srv.handleCapabilities))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/capabilities", nil)
+	req.Header.Set("Authorization", "Bearer nope")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong key status=%d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/capabilities", nil)
+	req.Header.Set("X-API-Key", "secret")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("right key status=%d", rec.Code)
+	}
+}
+
+// 没有配置 key 时 /v1/* 必须拒绝，不能依赖 Origin 或监听地址。
+func TestUnconfiguredKeyRejectsV1(t *testing.T) {
+	srv := &Server{Engine: &stubEngine{sessionID: "s1"}, Log: eventlog.New()}
+	handler := srv.withAuth(http.HandlerFunc(srv.handleCapabilities))
+
+	for _, path := range []string{"/v1/capabilities", "/v1/ws"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer anything")
+		req.Header.Set("X-API-Key", "anything")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d want 401", path, rec.Code)
+		}
+	}
+
+	// healthz 保留给探活。
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.withAuth(http.HandlerFunc(srv.handleHealth)).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("healthz status=%d", rec.Code)
+	}
+}
+
+// 走完整 mux：默认 Server 没设 key，/v1/ws 也不能升级。
+func TestUnconfiguredKeyRejectsWebSocketUpgrade(t *testing.T) {
+	srv := &Server{Addr: "127.0.0.1:0", Engine: &stubEngine{sessionID: "s1"}, Log: eventlog.New()}
+	go func() { _ = srv.ListenAndServe() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.WaitReady(ctx); err != nil {
+		t.Fatalf("wait ready: %v", err)
+	}
+	defer srv.Close()
+
+	wsURL := "ws://" + srv.ListenAddr() + "/v1/ws?session=s1"
+	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err == nil {
+		t.Fatal("expected dial to fail without key")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("resp=%v err=%v", resp, err)
+	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+}
+
 func TestChatReplayAndCancel(t *testing.T) {
 	eng := &stubEngine{
 		sessionID: "sess-fixed",

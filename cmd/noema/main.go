@@ -33,10 +33,17 @@ func run(args []string) error {
 	message := fs.String("message", "", "one-shot user message; empty starts a stdin loop")
 	sessionID := fs.String("session", "", "existing session id; empty creates one")
 	listen := fs.String("listen", "", "serve noema.v1 WebSocket on this address, e.g. 127.0.0.1:8787")
-	apiKey := fs.String("api-key", os.Getenv("NOEMA_BIND_KEY"), "optional API key for /v1/*; empty allows loopback only in this sample")
+	apiKey := fs.String("api-key", os.Getenv("NOEMA_BIND_KEY"), "required API key for /v1/*; empty refuses every /v1 request (healthz stays open)")
+	stateDir := fs.String("state-dir", defaultStateDir(), "Noema-owned event log dir; never inside the Lucky HomeDir")
 	capsOnly := fs.Bool("capabilities", false, "print adapter capabilities as JSON and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	listenAddr := strings.TrimSpace(*listen)
+	bindKey := strings.TrimSpace(*apiKey)
+	if listenAddr != "" && bindKey == "" {
+		return fmt.Errorf("-listen requires NOEMA_BIND_KEY / -api-key; /v1/* is rejected without a key, including loopback")
 	}
 
 	prompt, err := loadSoul()
@@ -65,20 +72,28 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if strings.TrimSpace(*listen) != "" {
+	if listenAddr != "" {
+		if err := ensureStateDirOutsideHome(*stateDir, adapter.HomeDir()); err != nil {
+			return err
+		}
+		logStore, err := eventlog.Open(*stateDir)
+		if err != nil {
+			return err
+		}
+		defer logStore.Close()
 		srv := &transport.Server{
-			Addr:        strings.TrimSpace(*listen),
-			APIKey:      strings.TrimSpace(*apiKey),
+			Addr:        listenAddr,
+			APIKey:      bindKey,
 			CharacterID: "hiori",
 			Engine:      adapter,
-			Log:         eventlog.New(),
+			Log:         logStore,
 		}
 		errCh := make(chan error, 1)
 		go func() { errCh <- srv.ListenAndServe() }()
 		if err := srv.WaitReady(ctx); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stdout, "listen=%s home=%s character=hiori\n", srv.ListenAddr(), adapter.HomeDir())
+		fmt.Fprintf(os.Stdout, "listen=%s home=%s state=%s character=hiori\n", srv.ListenAddr(), adapter.HomeDir(), logStore.Dir())
 		select {
 		case <-ctx.Done():
 			return srv.Close()
@@ -206,6 +221,34 @@ func defaultHome() string {
 		return v
 	}
 	return filepath.Join("data", "lucky-home")
+}
+
+// defaultStateDir 是 Noema 自己的事件日志目录，与 Lucky HomeDir 分开。
+func defaultStateDir() string {
+	if v := strings.TrimSpace(os.Getenv("NOEMA_STATE_DIR")); v != "" {
+		return v
+	}
+	return filepath.Join("data", "noema-state")
+}
+
+// ensureStateDirOutsideHome 防止把产品事件日志写进 Lucky HomeDir 冒充权威库。
+func ensureStateDirOutsideHome(stateDir, homeDir string) error {
+	state := strings.TrimSpace(stateDir)
+	if state == "" {
+		return fmt.Errorf("state dir is required")
+	}
+	absState, err := filepath.Abs(state)
+	if err != nil {
+		return fmt.Errorf("resolve state dir: %w", err)
+	}
+	absHome, err := filepath.Abs(strings.TrimSpace(homeDir))
+	if err != nil {
+		return fmt.Errorf("resolve home dir: %w", err)
+	}
+	if absState == absHome || strings.HasPrefix(absState, absHome+string(os.PathSeparator)) {
+		return fmt.Errorf("state dir %s is inside the Lucky HomeDir %s; use a Noema-owned directory such as data/noema-state", absState, absHome)
+	}
+	return nil
 }
 
 func envOr(key, fallback string) string {
