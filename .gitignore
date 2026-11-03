@@ -13,3 +13,4 @@ apps/android/local.properties
 *.apk
 *.aab
 *.iml
+/noema

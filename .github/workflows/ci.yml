@@ -1,0 +1,64 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: go (GOWORK=off, readonly modules)
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOFLAGS: "-mod=readonly"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          check-latest: true
+      - name: env
+        run: go version && go env GOWORK GOFLAGS
+      - name: verify modules are tidy
+        run: go mod verify
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test -mod=readonly ./...
+      - name: test -race
+        run: go test -mod=readonly -race ./...
+      - name: build
+        run: go build -mod=readonly -o bin/noema ./cmd/noema
+      # 不打真实模型：上面所有测试只用 stub engine，不需要 NOEMA_API_KEY。
+
+  android:
+    name: android unit test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: unit test
+        working-directory: apps/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:testDebugUnitTest
+      # 只跑 JVM unit test（不打 instrumentation、不连真机、不连后端）。
+      - name: upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: apps/android/app/build/reports/tests
+          if-no-files-found: ignore

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yurika0211/Noema/schemas/estuary-event.schema.json",
+  "title": "Noema Estuary 事件契约（M0 基线）",
+  "description": "M0 只先固定字段名与语义，不引入第三个服务。Noema 自己仍然是事件的产生方与本地权威；Estuary 只消费同构事件。subject_id 区分双主体，namespace 区分记忆/事件/活动域。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "subject_id",
+    "namespace",
+    "event_id",
+    "created_at"
+  ],
+  "properties": {
+    "subject_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "事件主体。双主体记忆里两个角色各有一个稳定 id，不共用 conversation id。"
+    },
+    "namespace": {
+      "type": "string",
+      "enum": ["memory", "event", "activity", "intent"],
+      "description": "存储域。memory=长期事实，event=事件账本，activity=共同活动，intent=意图候选。"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "全局唯一事件 id。与 noema.v1 的 event_id 一致时可直接对齐重放。"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "可选。Noema 会话 id；session 承载连续对话，不等于记忆。"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "可选。会话内单调游标，与 noema.v1 的 seq 同义。"
+    },
+    "activity_id": {
+      "type": "string",
+      "description": "可选。同一共同活动内的事件共享该 id，用于把活动重新串起来。"
+    },
+    "intent_id": {
+      "type": "string",
+      "description": "可选。产生该事件的意图/动机 id。没有就是普通对话事件。"
+    },
+    "kind": {
+      "type": "string",
+      "description": "事件类型，例如 chat_turn、memory_write、memory_forget、activity_start、intent_candidate。"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC 时间。"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "来源标记。虚构与现实必须可分，不能靠拼接用户消息充当私密事实。",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["user", "character", "engine", "system"]
+        },
+        "fictional": {
+          "type": "boolean",
+          "description": "true 表示角色虚构经历，不得当作现实事实检索。"
+        },
+        "character_id": { "type": "string" }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "description": "域相关正文。M0 不约束内部字段。"
+    }
+  }
+}
