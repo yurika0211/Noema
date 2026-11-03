@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Noema 通信协议 · 一轮怎么走</title>
+<style>
+:root{
+  --bg:#f4efe6;--paper:#fffdf8;--ink:#2c2924;--quiet:#6f675c;--line:#e0d6c8;
+  --android:#3d6d8c;--edge:#8a6232;--log:#4f6b52;--engine:#6d4c7a;
+  --drop:#8a4638;--ok:#3e6b52;--warn:#8a6420;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,"PingFang SC","Noto Sans SC",sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 4%;background:#fffdf8ee;border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+header b{font:20px/1.2 Georgia,"Songti SC",serif}
+header small{color:var(--quiet);font:11px/1.4 ui-monospace,monospace;letter-spacing:.06em}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 4% 64px}
+h1{font:normal clamp(26px,4vw,40px)/1.2 Georgia,"Songti SC",serif;margin:6px 0 8px}
+.lead{max-width:760px;color:#5c564c;margin:0 0 16px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px}
+button{font:14px/1 inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+button.on{background:var(--ink);color:#fffdf8;border-color:var(--ink)}
+button:disabled{opacity:.4;cursor:default}
+.stage{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.col{background:var(--paper);border:1px solid var(--line);border-radius:14px;min-height:168px;padding:12px;position:relative;overflow:hidden}
+.col h2{margin:0 0 2px;font:16px/1.3 Georgia,"Songti SC",serif}
+.col .sub{color:var(--quiet);font-size:12px;min-height:34px}
+.col.hot{box-shadow:inset 0 0 0 2px currentColor}
+.col.android.hot{color:var(--android)}
+.col.edge.hot{color:var(--edge)}
+.col.log.hot{color:var(--log)}
+.col.engine.hot{color:var(--engine)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;background:#ccc}
+.android .dot{background:var(--android)}
+.edge .dot{background:var(--edge)}
+.log .dot{background:var(--log)}
+.engine .dot{background:var(--engine)}
+.lane{position:relative;height:86px;margin:0 0 14px}
+.rail{position:absolute;left:6%;right:6%;top:40px;height:2px;background:#ddd3c6}
+.packet{position:absolute;top:18px;width:168px;margin-left:-84px;padding:8px 10px;border-radius:10px;background:var(--ink);color:#fffdf8;font:12px/1.35 ui-monospace,monospace;box-shadow:0 8px 20px #2c292422;transition:left .55s ease}
+.packet b{display:block;font:13px/1.2 system-ui,sans-serif;margin-bottom:2px}
+.packet.go{background:var(--android)}
+.packet.back{background:var(--log)}
+.packet.drop{background:var(--drop)}
+.packet.edge{background:var(--edge)}
+.panels{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h3{margin:0 0 8px;font:16px/1.3 Georgia,"Songti SC",serif}
+pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,Menlo,monospace;background:#f7f2ea;border-radius:10px;padding:12px;min-height:168px}
+.step{font-size:13px;color:#5c564c;min-height:72px}
+.k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--edge)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--quiet);font-weight:500;font-size:12px}
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#eee7dc;margin-right:4px}
+.chip.on{background:#e5f0e4;color:var(--ok)}
+.chip.off{background:#f6e6df;color:var(--drop)}
+.note{font-size:13px;color:#655c50;border-left:2px solid #c4ad86;padding:8px 12px;margin-top:12px;background:#f3ece1}
+.progress{height:3px;background:#e7dfd3;border-radius:99px;margin:8px 0 0;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--ink);transition:width .4s}
+@media(max-width:860px){
+  .stage,.panels{grid-template-columns:1fr}
+  .lane{height:110px}
+  .packet{width:140px;margin-left:-70px}
+}
+</style>
+</head>
+<body>
+<header>
+  <b>Noema · noema.v1</b>
+  <small>样品 · 协议动画 · 2026-11-03 源码核对</small>
+</header>
+<div class="wrap">
+  <div class="k">Android 客户端 ↔ Noema runtime</div>
+  <h1>一轮对话在协议上怎么走</h1>
+  <p class="lead">信封是产品协议，不是 Lucky Agent 的 WebSocket。动画按 <code>internal/protocol</code> 和 <code>internal/eventlog</code> 已有字段走。PR #3 合并后 <code>cmd/noema -listen 127.0.0.1:8787</code> 已经挂上这条 WebSocket；<code>-listen</code> 为空时仍然只有 CLI 文本。</p>
+
+  <div class="bar" id="modes">
+    <button class="on" data-mode="chat">正常一轮</button>
+    <button data-mode="retry">同一请求再发</button>
+    <button data-mode="conflict">同一 ID 换了话</button>
+    <button data-mode="cancel">中途取消</button>
+    <button data-mode="replay">断线重放</button>
+    <button id="play">播放</button>
+    <button id="step">下一步</button>
+  </div>
+  <div class="progress"><i id="bar"></i></div>
+
+  <div class="stage">
+    <div class="col android" id="c-android"><h2><i class="dot"></i>Android</h2><div class="sub" id="s-android">生成 client_request_id，记住 last_seq。</div></div>
+    <div class="col edge" id="c-edge"><h2><i class="dot"></i>接入层</h2><div class="sub" id="s-edge">分配 seq、写事件日志，再把信封发出去。当前只按 <code>type</code> 分派，不校验 <code>protocol</code> 字段。</div></div>
+    <div class="col log" id="c-log"><h2><i class="dot"></i>事件日志</h2><div class="sub" id="s-log">进程内存。重启后游标从 0。幂等键是 owner + client_request_id。</div></div>
+    <div class="col engine" id="c-engine"><h2><i class="dot"></i>LuckyAdapter</h2><div class="sub" id="s-engine">只把 content / done / error / cancelled 交出来。thinking、tool、reasoning 丢掉。</div></div>
+  </div>
+
+  <div class="lane">
+    <div class="rail"></div>
+    <div class="packet" id="pkt" style="left:12%"><b>待机</b>点播放</div>
+  </div>
+
+  <div class="panels">
+    <div class="card">
+      <h3 id="title">当前帧</h3>
+      <div class="step" id="narr"></div>
+      <pre id="json"></pre>
+    </div>
+    <div class="card">
+      <h3>会话游标</h3>
+      <table>
+        <thead><tr><th>seq</th><th>type</th><th>说明</th></tr></thead>
+        <tbody id="log"></tbody>
+      </table>
+      <div class="note" id="caps">握手应带 capability：text_stream、cancel_turn、isolated_home_dir 开着；host_context、ui_delta、approval、表情事件关着。</div>
+    </div>
+  </div>
+</div>
+<script>
+const pkt = document.getElementById("pkt");
+const narr = document.getElementById("narr");
+const json = document.getElementById("json");
+const title = document.getElementById("title");
+const logEl = document.getElementById("log");
+const bar = document.getElementById("bar");
+const cols = {
+  android: document.getElementById("c-android"),
+  edge: document.getElementById("c-edge"),
+  log: document.getElementById("c-log"),
+  engine: document.getElementById("c-engine")
+};
+const subs = {
+  android: document.getElementById("s-android"),
+  edge: document.getElementById("s-edge"),
+  log: document.getElementById("s-log"),
+  engine: document.getElementById("s-engine")
+};
+
+const hello = {
+  protocol: "noema.v1", type: "hello", event_id: "evt_1", seq: 1,
+  session_id: "sess_1", character_id: "hiori", created_at: "2026-11-03T08:00:00Z",
+  payload: { session_id: "sess_1", character_id: "hiori", capabilities: {
+    text_stream: true, cancel_turn: true, isolated_home_dir: true,
+    host_context: false, ui_delta: false, approval_resolution: false
+  }}
+};
+
+function env(type, seq, payload, extra) {
+  return Object.assign({
+    protocol: "noema.v1", type, event_id: "evt_" + seq, seq,
+    run_id: "run_sess_1", client_request_id: "req_1",
+    session_id: "sess_1", character_id: "hiori",
+    created_at: "2026-11-03T08:00:0" + Math.min(seq, 9) + "Z",
+    payload: payload || undefined
+  }, extra || {});
+}
+
+const modes = {
+  chat: [
+    { at: "edge", dir: "back", x: 62, title: "hello", say: "连接建立后 runtime 先报会话和能力。安卓按 capability 决定按钮，不展示还没接通的表情和审批。", frame: hello, row: ["1", "hello", "能力面"] },
+    { at: "android", dir: "go", x: 18, title: "chat", say: "安卓自己生成 client_request_id。重试必须带同一个 ID，不能靠重发整句去续跑。", frame: { protocol: "noema.v1", type: "chat", client_request_id: "req_1", session_id: "sess_1", character_id: "hiori", created_at: "2026-11-03T08:00:02Z", payload: { message: "今晚想改剧本的开头" } }, focus: "android" },
+    { at: "log", dir: "edge", x: 40, title: "BeginRun", say: "接入层用 owner + client_request_id 查日志。第一次见到这对键，记下输入哈希，分配 run_id。", frame: { op: "BeginRun", key: "owner/req_1", input_hash: "sha256(今晚想改剧本的开头)", run_id: "run_sess_1", replay: false }, focus: "log" },
+    { at: "engine", dir: "edge", x: 84, title: "StartTurn", say: "LuckyAdapter 用固定 session 调 SDK。HostContext 现在必须拒绝。工具轨迹和 reasoning 不进入陪伴界面。", frame: { call: "ChatSessionStream", session_id: "sess_1", message: "今晚想改剧本的开头", dropped: ["thinking", "tool", "reasoning"] }, focus: "engine" },
+    { at: "log", dir: "back", x: 62, title: "content", say: "文本块先写入事件日志，服务端分配 seq，再发给安卓。半截文本不等于回合完成。", frame: env("content", 2, { text: "开头先留一句她没说完的话。" }), row: ["2", "content", "文本增量"] },
+    { at: "log", dir: "back", x: 62, title: "done", say: "终态单独一帧。done、error、cancelled 不能混成一个“流结束了”。", frame: env("done", 3), row: ["3", "done", "回合完成"] }
+  ],
+  retry: [
+    { at: "android", dir: "go", x: 18, title: "chat 再发", say: "同一 req_1，同一句话。这是重试，不是新的一轮。", frame: { protocol: "noema.v1", type: "chat", client_request_id: "req_1", payload: { message: "今晚想改剧本的开头" } }, focus: "android" },
+    { at: "log", dir: "edge", x: 40, title: "幂等命中", say: "输入哈希相同，复用已有 run_id，replay=true。不再调用模型。", frame: { op: "BeginRun", key: "owner/req_1", replay: true, run_id: "run_sess_1" }, focus: "log", row: ["—", "reuse", "不新开回合"] },
+    { at: "log", dir: "back", x: 62, title: "重放已有事件", say: "安卓拿到的是已经落盘的 content 和 done，不是第二份回答。", frame: env("done", 3), row: ["3", "done", "原终态"] }
+  ],
+  conflict: [
+    { at: "android", dir: "go", x: 18, title: "chat 换词", say: "还是 req_1，正文换成另一句。这不能静默当成同一次请求。", frame: { protocol: "noema.v1", type: "chat", client_request_id: "req_1", payload: { message: "另一句完全不同的话" } }, focus: "android" },
+    { at: "log", dir: "drop", x: 40, title: "冲突", say: "eventlog.BeginRun 对不上输入哈希，返回 invalid request。不复用上一次的回答。", frame: { op: "BeginRun", error: "client_request_id reused with different input" }, focus: "log" },
+    { at: "edge", dir: "back", x: 62, title: "error", say: "接入层回 error，payload 形状是 {\"error\":\"...\"}。这一帧已接到传输层：ws.go 把 BeginRun 的冲突写成 error 信封。", frame: env("error", 4, { error: "invalid request: client_request_id reused with different input" }, { run_id: "" }), row: ["4", "error", "ID 冲突"] }
+  ],
+  cancel: [
+    { at: "android", dir: "go", x: 18, title: "chat", say: "回合已经开始，安卓手里有 run_id。", frame: env("content", 2, { text: "我先看一眼开头——" }), row: ["2", "content", "未完成"] },
+    { at: "android", dir: "go", x: 22, title: "cancel", say: "取消按 run_id。适配层找到这次 turn 的 context，调用 cancel。空 run_id 是 invalid request。", frame: { protocol: "noema.v1", type: "cancel", run_id: "run_sess_1", client_request_id: "req_1" }, focus: "android" },
+    { at: "engine", dir: "edge", x: 84, title: "CancelTurn", say: "SDK 侧通过 context 取消。找不到这个 run 就返回 not found。", frame: { call: "CancelTurn", run_id: "run_sess_1" }, focus: "engine" },
+    { at: "log", dir: "back", x: 62, title: "cancelled", say: "终态是 cancelled。已经吐出的文本留着，但不能把它当成 done。", frame: env("cancelled", 3), row: ["3", "cancelled", "已取消"] }
+  ],
+  replay: [
+    { at: "android", dir: "go", x: 18, title: "replay", say: "断线后安卓带本地最后确认的 seq。这里假设只确认到 1，后面的 content 和 done 还没收到。", frame: { protocol: "noema.v1", type: "replay", session_id: "sess_1", payload: { last_seq: 1 } }, focus: "android" },
+    { at: "log", dir: "edge", x: 40, title: "After(1)", say: "日志返回 seq > 1 的事件。这是重放已落盘事件，不是从模型检查点续跑。", frame: { op: "After", session_id: "sess_1", last_seq: 1, hits: ["content@2", "done@3"] }, focus: "log" },
+    { at: "log", dir: "back", x: 62, title: "content", say: "按原 seq 原样发回，安卓用 event_id 去重。", frame: env("content", 2, { text: "开头先留一句她没说完的话。" }), row: ["2", "content", "重放"] },
+    { at: "log", dir: "back", x: 62, title: "replay_complete", say: "重放结束单独一帧。进程重启后内存日志是空的，游标从 0，旧 seq 对不上。", frame: { protocol: "noema.v1", type: "replay_complete", session_id: "sess_1", seq: 3 }, row: ["3", "replay_complete", "重放结束"] }
+  ]
+};
+
+let mode = "chat";
+let i = -1;
+let timer = null;
+let playing = false;
+const seen = [];
+
+function render(step, index, total) {
+  Object.values(cols).forEach(el => el.classList.remove("hot"));
+  const focus = step.focus || step.at;
+  cols[focus].classList.add("hot");
+  title.textContent = (index + 1) + " / " + total + "  ·  " + step.title;
+  narr.textContent = step.say;
+  json.textContent = JSON.stringify(step.frame, null, 2);
+  const x = { android: "12%", edge: "38%", log: "62%", engine: "86%" }[step.at] || "50%";
+  pkt.style.left = step.x ? step.x + "%" : x;
+  pkt.className = "packet " + (step.dir || "");
+  const label = step.frame.type || step.frame.op || step.frame.call || step.title;
+  const text = step.frame.payload && step.frame.payload.text;
+  const detail = text || (label === step.title ? "" : step.title);
+  pkt.innerHTML = "<b>" + label + "</b>" + detail;
+  if (step.row) {
+    const tr = document.createElement("tr");
+    step.row.forEach(cell => {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      tr.appendChild(td);
+    });
+    logEl.appendChild(tr);
+  }
+  bar.style.width = ((index + 1) / total * 100) + "%";
+}
+
+function resetLog() {
+  logEl.innerHTML = "";
+  seen.length = 0;
+}
+
+function show(index) {
+  const steps = modes[mode];
+  if (index < 0 || index >= steps.length) {
+    stop();
+    return;
+  }
+  i = index;
+  if (index === 0) resetLog();
+  render(steps[index], index, steps.length);
+}
+
+function stop() {
+  playing = false;
+  clearInterval(timer);
+  document.getElementById("play").textContent = "播放";
+}
+
+function play() {
+  const steps = modes[mode];
+  if (i >= steps.length - 1) i = -1;
+  playing = true;
+  document.getElementById("play").textContent = "暂停";
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (i + 1 >= modes[mode].length) { stop(); return; }
+    show(i + 1);
+  }, 1700);
+  if (i < 0) show(0);
+}
+
+document.getElementById("play").onclick = () => playing ? stop() : play();
+document.getElementById("step").onclick = () => {
+  stop();
+  const steps = modes[mode];
+  show(i + 1 >= steps.length ? 0 : i + 1);
+};
+document.getElementById("modes").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-mode]");
+  if (!btn) return;
+  mode = btn.dataset.mode;
+  document.querySelectorAll("button[data-mode]").forEach(b => b.classList.toggle("on", b === btn));
+  stop();
+  i = -1;
+  resetLog();
+  bar.style.width = "0";
+  title.textContent = "当前帧";
+  narr.textContent = "选好场景后点播放。五条都是同一套信封，差别在幂等、取消和游标。";
+  json.textContent = "";
+  pkt.style.left = "12%";
+  pkt.className = "packet";
+  pkt.innerHTML = "<b>待机</b>" + btn.textContent;
+});
+narr.textContent = "选好场景后点播放。正常一轮会从 hello 走到 done。";
+
+window.__noema = {
+  setMode(name) {
+    const btn = document.querySelector(`button[data-mode="${name}"]`);
+    if (!btn) return false;
+    btn.click();
+    return mode === name && i === -1;
+  },
+  next() { document.getElementById("step").click(); return i; },
+  state() {
+    return {
+      mode, i, title: title.textContent, narr: narr.textContent,
+      json: json.textContent, log: logEl.innerText, pkt: pkt.textContent
+    };
+  }
+};
+</script>
+</body>
+</html>
