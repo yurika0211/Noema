@@ -20,7 +20,7 @@ jobs:
       GOWORK: "off"
       GOFLAGS: "-mod=readonly"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25.x"
@@ -43,8 +43,8 @@ jobs:
     name: android unit test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -57,7 +57,7 @@ jobs:
       # 只跑 JVM unit test（不打 instrumentation、不连真机、不连后端）。
       - name: upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android-unit-test-reports
           path: apps/android/app/build/reports/tests
