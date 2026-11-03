@@ -2,7 +2,10 @@ module github.com/yurika0211/Noema
 
 go 1.25.0
 
-require github.com/yurika0211/luckyagent-app v0.4.3-0.20261029222614-74ba20f1d92e
+require (
+	github.com/gorilla/websocket v1.5.3
+	github.com/yurika0211/luckyagent-app v0.4.3-0.20261029222614-74ba20f1d92e
+)
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect

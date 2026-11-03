@@ -1,0 +1,2 @@
+-keepattributes *Annotation*, InnerClasses, Signature
+-keep class app.noema.android.data.** { *; }
