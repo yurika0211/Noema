@@ -244,8 +244,9 @@ func TestTurnLogRecordsTimingWithoutBody(t *testing.T) {
 		},
 	}
 	obs := observe.New(&buf)
+	srv := &Server{Engine: eng, Log: eventlog.New(), CharacterID: "hiori", Observe: obs}
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		(&Server{Engine: eng, Log: eventlog.New(), CharacterID: "hiori", Observe: obs}).handleWS(w, r)
+		srv.handleWS(w, r)
 	}))
 	defer httpSrv.Close()
 
@@ -268,7 +269,9 @@ func TestTurnLogRecordsTimingWithoutBody(t *testing.T) {
 			break
 		}
 	}
-	time.Sleep(30 * time.Millisecond)
+	if !srv.WaitTurns(2 * time.Second) {
+		t.Fatal("forward did not finish")
+	}
 	line := buf.String()
 	for _, want := range []string{"component=turn", "protocol=noema.v1", "session_id=sess-obs", "status=done", "client_request_id=req-obs", "first_byte_ms="} {
 		if !strings.Contains(line, want) {

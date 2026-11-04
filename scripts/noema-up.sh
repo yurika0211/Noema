@@ -12,6 +12,7 @@ state_dir="${NOEMA_STATE_DIR:-$root/data/noema-state}"
 mode="${NOEMA_MODE:-live}"
 
 case "$home_dir" in
+  # 子串匹配。路径里碰巧含 .luckyagent 也会拒绝，避免指到用户自己的 Lucky 家目录。
   *".luckyagent"*)
     echo "noema-up: NOEMA_HOME must not be ~/.luckyagent ($home_dir)" >&2
     exit 1

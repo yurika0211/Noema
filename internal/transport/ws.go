@@ -47,6 +47,9 @@ type Server struct {
 	mu      sync.Mutex
 	httpSrv *http.Server
 	ready   chan struct{}
+
+	// turns 是还没结束的 forward。测试用来等日志写完，不靠 sleep。
+	turns sync.WaitGroup
 }
 
 func (s *Server) ListenAndServe() error {
@@ -336,8 +339,27 @@ func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, 
 		s.Observe.Finish(turn, "error", errClass(err))
 		return "", err
 	}
-	go s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, events)
+	s.turns.Add(1)
+	go func() {
+		defer s.turns.Done()
+		s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, events)
+	}()
 	return runID, nil
+}
+
+// WaitTurns 等到已经启动的 forward 都返回。超时返回 false。
+func (s *Server) WaitTurns(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		s.turns.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 func errClass(err error) string {
