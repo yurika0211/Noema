@@ -234,6 +234,28 @@ func TestChatReplayAndCancel(t *testing.T) {
 	}
 }
 
+func TestBrowserTokenAndWebPage(t *testing.T) {
+	srv := &Server{APIKey: "secret", Engine: &stubEngine{sessionID: "s1"}, Log: eventlog.New()}
+	handler := srv.withAuth(srv.routes())
+
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "灯織") {
+		t.Fatalf("page status=%d", page.Code)
+	}
+
+	ok := httptest.NewRecorder()
+	handler.ServeHTTP(ok, httptest.NewRequest(http.MethodGet, "/v1/capabilities?access_token=secret", nil))
+	if ok.Code != http.StatusOK {
+		t.Fatalf("access_token status=%d", ok.Code)
+	}
+	bad := httptest.NewRecorder()
+	handler.ServeHTTP(bad, httptest.NewRequest(http.MethodGet, "/v1/capabilities?access_token=nope", nil))
+	if bad.Code != http.StatusUnauthorized {
+		t.Fatalf("bad token status=%d", bad.Code)
+	}
+}
+
 func TestTurnLogRecordsTimingWithoutBody(t *testing.T) {
 	var buf bytes.Buffer
 	eng := &stubEngine{

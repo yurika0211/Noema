@@ -12,6 +12,7 @@
 - 接入层：`internal/transport`
 - 事件日志：`internal/eventlog`（落盘到 Noema 自己的状态目录，`seq` 跨重启单调）
 - Android 文本壳：`apps/android`
+- Web 样品：`apps/web`（由 `-listen` 提供，不是 Lucky 工作台）
 - 角色原则：`characters/hiori/SOUL.md`（初始化写入独立 HomeDir，不是逐轮注入）
 - Estuary 契约字段（只有 schema，未起服务）：`docs/estuary-event.schema.json`
 - 为什么嵌入 SDK、不起 Estuary 服务：`docs/adr/0001-embed-sdk.md`
@@ -72,6 +73,14 @@ cp local.properties.example local.properties   # 填 sdk.dir
 客户端只消费 `noema.v1`。不接 `lh serve`，没有 Memory 图谱、Tasks、Skills、Cron。停止按钮才会取消当前回合。
 
 `NOEMA_BIND_KEY` 存在 `EncryptedSharedPreferences`（`SettingsStore`），与后端是同一把 key；握手带 `Authorization: Bearer <key>`。
+
+## Web 样品
+
+`./scripts/noema-up.sh` 起来之后，浏览器打开它打印的地址，例如 `http://127.0.0.1:8787/`。页面在 `apps/web`，由同一个进程提供，不直连 `lh serve`。
+
+页上的 WebSocket 默认是 `ws://127.0.0.1:8787/v1/ws`，BIND_KEY 填和后端同一把。浏览器不能设 `Authorization` 头，所以握手把 key 放在 `access_token` 查询参数里，服务端只在 `/v1/*` 上接受它。刷新后用本地记住的 session 和 `last_seq` 重放，不新开会话。Galgame 只换立绘和对白框的布局。活动和回忆是空卡片，标明未接入 / 模拟，点击不写记忆。
+
+立绘是占位，不是正式资产。表情、OpenUI、DevTools 不在这一页。
 
 ## 模拟器一轮（服务端与 Android 文本壳已过）
 

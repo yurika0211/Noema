@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>灯織 · Noema</title>
+<style>
+:root{
+  --bg:#f3eee6;--paper:#fffdf8;--ink:#2c2924;--quiet:#6f675c;--line:#e2d8cb;
+  --sage:#5f7464;--sage-soft:#e4eee6;--stop:#8a4638;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,"PingFang SC","Noto Sans SC",sans-serif}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:18px 6% 0}
+header h1{margin:0;font:normal 28px/1.2 Georgia,"Songti SC",serif}
+header small{color:var(--quiet);font-size:12px}
+main{max-width:920px;margin:0 auto;padding:18px 6% 48px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:12px 0}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--quiet)}
+input,textarea,button{font:15px/1.4 inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+button{cursor:pointer}
+button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button.stop{background:var(--stop);color:#fff;border-color:var(--stop)}
+.status{font-size:13px;color:var(--quiet);min-height:1.4em}
+.stage{display:grid;grid-template-columns:180px 1fr;gap:14px;margin-top:12px}
+.stage.gal{grid-template-columns:1fr}
+.portrait{background:var(--paper);border:1px solid var(--line);border-radius:16px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--sage)}
+.portrait .mark{width:72px;height:96px;border:1px dashed var(--sage);border-radius:36px 36px 18px 18px;display:grid;place-items:center;font:13px/1.2 Georgia,serif;color:var(--quiet)}
+.portrait b{font:20px/1 Georgia,"Songti SC",serif;color:var(--ink)}
+.portrait span{font-size:12px;color:var(--quiet)}
+.stage.gal .portrait{min-height:280px}
+.log{display:flex;flex-direction:column;gap:8px;min-height:220px}
+.bubble{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 12px;white-space:pre-wrap}
+.bubble.user{background:#efe8dc}
+.stage.gal .bubble.assistant{font:18px/1.7 Georgia,"Songti SC",serif}
+.composer{display:flex;gap:8px;margin-top:12px}
+.composer textarea{flex:1;min-height:64px;resize:vertical}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.card{background:var(--paper);border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
+.card h2{margin:0 0 4px;font:16px/1.3 Georgia,"Songti SC",serif}
+.card p{margin:0;color:var(--quiet);font-size:13px}
+.card button{margin-top:8px}
+.note{margin-top:8px;font-size:13px;color:var(--stop);min-height:1.2em}
+@media(max-width:720px){.stage,.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>灯織</h1>
+  <small id="mode-label">聊天</small>
+</header>
+<main>
+  <div class="bar">
+    <label>WebSocket<input id="ws" value="ws://127.0.0.1:8787/v1/ws" size="32"></label>
+    <label>BIND_KEY<input id="key" type="password" autocomplete="off" size="18"></label>
+    <button id="connect" type="button">连接</button>
+    <button id="mode-chat" class="on" type="button">聊天</button>
+    <button id="mode-gal" type="button">Galgame</button>
+  </div>
+  <div class="status" id="status">未连接</div>
+  <div class="stage" id="stage">
+    <div class="portrait" aria-label="灯織立绘占位">
+      <div class="mark">占位</div>
+      <b>灯織</b>
+      <span>静态立绘位 · 还没有正式资产</span>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+  <form class="composer" id="form">
+    <textarea id="draft" placeholder="和灯織说话"></textarea>
+    <button id="send" type="submit">发送</button>
+    <button id="stop" class="stop" type="button" hidden>停止</button>
+  </form>
+  <div class="note" id="note"></div>
+  <div class="cards">
+    <article class="card">
+      <h2>活动</h2>
+      <p>未接入 / 模拟。这里没有共同活动。</p>
+      <button type="button" data-empty="活动">看看</button>
+    </article>
+    <article class="card">
+      <h2>回忆</h2>
+      <p>未接入 / 模拟。点击不会写入记忆。</p>
+      <button type="button" data-empty="回忆">看看</button>
+    </article>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+const PROTOCOL = "noema.v1";
+const STORE = "noema.web.sample.v1";
+
+const wsInput = document.querySelector("#ws");
+const keyInput = document.querySelector("#key");
+const statusEl = document.querySelector("#status");
+const logEl = document.querySelector("#log");
+const noteEl = document.querySelector("#note");
+const draftEl = document.querySelector("#draft");
+const sendBtn = document.querySelector("#send");
+const stopBtn = document.querySelector("#stop");
+const stage = document.querySelector("#stage");
+const modeLabel = document.querySelector("#mode-label");
+
+const saved = JSON.parse(localStorage.getItem(STORE) || "{}");
+if (saved.ws) wsInput.value = saved.ws;
+if (saved.key) keyInput.value = saved.key;
+
+let socket = null;
+let sessionId = saved.sessionId || "";
+let lastSeq = Number(saved.lastSeq || 0);
+let requestId = "";
+let running = false;
+const seen = new Set(saved.seen || []);
+
+function persist() {
+  localStorage.setItem(STORE, JSON.stringify({
+    ws: wsInput.value.trim(),
+    key: keyInput.value,
+    sessionId,
+    lastSeq,
+    seen: [...seen].slice(-400),
+  }));
+}
+
+function setStatus(text) { statusEl.textContent = text; }
+
+function line(role, text, id) {
+  const node = document.createElement("div");
+  node.className = "bubble " + role;
+  node.dataset.id = id || "";
+  node.textContent = (role === "user" ? "你\n" : "灯織\n") + text;
+  logEl.appendChild(node);
+  node.scrollIntoView({ block: "nearest" });
+  return node;
+}
+
+function appendAssistant(text, id) {
+  if (!text) return;
+  const last = logEl.lastElementChild;
+  if (last && last.classList.contains("assistant") && !last.dataset.closed) {
+    last.textContent += text;
+  } else {
+    line("assistant", text, id);
+  }
+}
+
+function wsURL() {
+  const raw = wsInput.value.trim() || "ws://127.0.0.1:8787/v1/ws";
+  const base = raw.includes("/v1/ws") ? raw : raw.replace(/\/$/, "") + "/v1/ws";
+  if (!sessionId) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return base + sep + "session=" + encodeURIComponent(sessionId);
+}
+
+function send(obj) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  socket.send(JSON.stringify(obj));
+  return true;
+}
+
+function connect() {
+  noteEl.textContent = "";
+  const previous = socket;
+  const key = keyInput.value.trim();
+  const url = new URL(wsURL());
+  if (key) url.searchParams.set("access_token", key);
+  persist();
+  setStatus("连接中");
+  socket = new WebSocket(url);
+  if (previous && previous !== socket) previous.close();
+  socket.addEventListener("open", () => {
+    setStatus(sessionId ? "已连接 · " + sessionId : "已连接");
+    if (lastSeq > 0 || sessionId) {
+      send({ protocol: PROTOCOL, type: "replay", session_id: sessionId || undefined, payload: { last_seq: lastSeq } });
+    }
+  });
+  socket.addEventListener("message", (ev) => onFrame(ev.data));
+  const mine = socket;
+  socket.addEventListener("close", () => {
+    if (socket !== mine) return;
+    setStatus("已断开");
+    running = false;
+    stopBtn.hidden = true;
+    sendBtn.hidden = false;
+  });
+  socket.addEventListener("error", () => { noteEl.textContent = "连接失败。检查地址、BIND_KEY，以及页面是否由这个 noema 进程打开。"; });
+}
+
+function onFrame(raw) {
+  let env;
+  try { env = JSON.parse(raw); } catch { noteEl.textContent = "无法解析的帧"; return; }
+  if (env.event_id && seen.has(env.event_id)) return;
+  if (env.event_id) seen.add(env.event_id);
+  if (typeof env.seq === "number" && env.seq > lastSeq) lastSeq = env.seq;
+  if (env.session_id) sessionId = env.session_id;
+  const helloSession = env.payload && env.payload.session_id;
+  if (env.type === "hello" && helloSession) sessionId = helloSession;
+  persist();
+  const text = env.payload && (env.payload.text || env.payload.error || "");
+  if (env.type === "hello") setStatus("已连接 · " + (sessionId || "未分配"));
+  if (env.type === "content") {
+    running = true;
+    stopBtn.hidden = false;
+    sendBtn.hidden = true;
+    appendAssistant(text, env.event_id);
+  }
+  if (env.type === "done") {
+    if (text) appendAssistant(text, env.event_id);
+    const last = logEl.lastElementChild;
+    if (last) last.dataset.closed = "1";
+    running = false;
+    stopBtn.hidden = true;
+    sendBtn.hidden = false;
+  }
+  if (env.type === "cancelled") {
+    const last = logEl.lastElementChild;
+    if (last) last.dataset.closed = "1";
+    running = false;
+    stopBtn.hidden = true;
+    sendBtn.hidden = false;
+    noteEl.textContent = "已取消";
+  }
+  if (env.type === "error") noteEl.textContent = text || "error";
+  if (env.type === "replay_complete") setStatus("已重放 · " + (sessionId || ""));
+}
+
+document.querySelector("#connect").addEventListener("click", connect);
+document.querySelector("#form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const message = draftEl.value.trim();
+  if (!message || running) return;
+  requestId = crypto.randomUUID();
+  const ok = send({
+    protocol: PROTOCOL,
+    type: "chat",
+    client_request_id: requestId,
+    session_id: sessionId || undefined,
+    character_id: "hiori",
+    payload: { message },
+  });
+  if (!ok) { noteEl.textContent = "未连接"; return; }
+  line("user", message, requestId);
+  draftEl.value = "";
+  running = true;
+  stopBtn.hidden = false;
+  sendBtn.hidden = true;
+  noteEl.textContent = "";
+});
+stopBtn.addEventListener("click", () => {
+  if (!requestId) return;
+  send({
+    protocol: PROTOCOL,
+    type: "cancel",
+    client_request_id: requestId,
+    session_id: sessionId || undefined,
+  });
+});
+
+function setMode(gal) {
+  stage.classList.toggle("gal", gal);
+  document.querySelector("#mode-chat").classList.toggle("on", !gal);
+  document.querySelector("#mode-gal").classList.toggle("on", gal);
+  modeLabel.textContent = gal ? "Galgame · 同一 session" : "聊天";
+}
+document.querySelector("#mode-chat").addEventListener("click", () => setMode(false));
+document.querySelector("#mode-gal").addEventListener("click", () => setMode(true));
+document.querySelectorAll("[data-empty]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    noteEl.textContent = btn.dataset.empty + "未接入 / 模拟。没有写入记忆。";
+  });
+});
+
+if (sessionId && keyInput.value.trim()) {
+  connect();
+} else if (sessionId) {
+  setStatus("已记住 session " + sessionId + " · 点连接后续上");
+}

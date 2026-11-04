@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	noemaweb "github.com/yurika0211/Noema/apps/web"
 	"github.com/yurika0211/Noema/internal/engine"
 	"github.com/yurika0211/Noema/internal/eventlog"
 	"github.com/yurika0211/Noema/internal/observe"
@@ -61,10 +62,7 @@ func (s *Server) ListenAndServe() error {
 		s.CharacterID = "hiori"
 	}
 	ready := s.readyCh()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", s.handleHealth)
-	mux.HandleFunc("/v1/capabilities", s.handleCapabilities)
-	mux.HandleFunc("/v1/ws", s.handleWS)
+	mux := s.routes()
 
 	srv := &http.Server{
 		Addr:              s.Addr,
@@ -93,6 +91,15 @@ func (s *Server) ListenAndServe() error {
 		close(ready)
 	}
 	return srv.Serve(ln)
+}
+
+func (s *Server) routes() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", s.handleHealth)
+	mux.HandleFunc("/v1/capabilities", s.handleCapabilities)
+	mux.HandleFunc("/v1/ws", s.handleWS)
+	mux.Handle("/", noemaweb.Handler())
+	return mux
 }
 
 func (s *Server) readyCh() chan struct{} {
@@ -136,7 +143,7 @@ func (s *Server) ListenAddr() string {
 // /healthz 不鉴权，只用来探活。
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
+		if r.URL.Path == "/healthz" || !strings.HasPrefix(r.URL.Path, "/v1/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -151,6 +158,10 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		}
 		if got == "" {
 			got = strings.TrimSpace(r.Header.Get("X-API-Key"))
+		}
+		// 浏览器 WebSocket 不能设 Authorization。只接受 access_token 查询参数。
+		if got == "" {
+			got = strings.TrimSpace(r.URL.Query().Get("access_token"))
 		}
 		if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
