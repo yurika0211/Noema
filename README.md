@@ -43,7 +43,19 @@ GOWORK=off go run ./cmd/noema -listen 127.0.0.1:8787
 
 `NOEMA_BIND_KEY` / `-api-key` 为空时 `-listen` 直接启动失败；运行时 `/v1/capabilities`、`/v1/ws` 返回 401，只有 `/healthz` 不鉴权。不要把 Origin 检查当鉴权，也不要为了本地方便留空 key。
 
-模拟器默认连 `ws://10.0.2.2:8787/v1/ws`。真机用电脑的 LAN 地址。不要把 `NOEMA_HOME` 设成 `~/.luckyagent`，也不要把 `NOEMA_STATE_DIR` 放进 `NOEMA_HOME`（启动时会拒绝）。
+模拟器连 `ws://10.0.2.2:<port>/v1/ws`。后端仍可只听 `127.0.0.1`，`<port>` 与 `NOEMA_LISTEN` 一致，默认 8787。
+
+真机不能用 `10.0.2.2`，也不能用电脑上的 `127.0.0.1`。后端要听所有网卡：
+
+```bash
+export NOEMA_BIND_KEY=...
+export NOEMA_LISTEN=0.0.0.0:8787
+./scripts/noema-up.sh
+```
+
+App 填 `ws://<电脑 LAN>:8787/v1/ws` 和同一把 `NOEMA_BIND_KEY`。只绑 `127.0.0.1` 时手机连不上。
+
+另开一个端口做临时转发（例如本机曾把 8790 转到 8788）在那个进程退出后就没有了，不能当成启动方式。不要把 `NOEMA_HOME` 设成 `~/.luckyagent`，也不要把 `NOEMA_STATE_DIR` 放进 `NOEMA_HOME`（启动时会拒绝）。
 
 只看能力面：
 
