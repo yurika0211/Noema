@@ -141,6 +141,8 @@ details.setup summary::-webkit-details-marker{display:none}
 }
 .setup button{cursor:pointer}
 .setup .aside{margin:10px 0 0}
+.foot{margin-top:var(--space-tight)}
+.foot a{font:11px/1 var(--font-ui);color:var(--mute);letter-spacing:.08em;text-decoration:none}
 @media(max-width:640px){
   .app{padding:var(--space-block)}
   .stage.chat{flex-direction:column;align-items:center}
@@ -197,6 +199,7 @@ details.setup summary::-webkit-details-marker{display:none}
     </div>
     <p class="aside">活动、回忆尚未接入。点这里不会写入记忆。</p>
   </details>
+  <footer class="foot"><a href="/trace">诊断</a></footer>
 </div>
 <script src="app.js"></script>
 </body>

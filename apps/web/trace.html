@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>诊断 · 灯織</title>
+<style>
+:root{
+  --noema-bg:#f4f1ea;--noema-ink:#1c1a16;--noema-accent:#355e4b;
+  --paper:#fbf8f1;--mute:#7a756c;--line:#e4ddd0;
+  --font-ui:ui-sans-serif,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--noema-bg);color:var(--noema-ink);font:14px/1.5 var(--font-ui)}
+main{max-width:880px;margin:0 auto;padding:22px}
+h1{font:20px/1.2 Georgia,"Songti SC",serif;font-weight:500;letter-spacing:.08em}
+a{color:var(--noema-accent)}
+.bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;color:var(--mute);font-size:12px}
+table{width:100%;border-collapse:collapse;margin-top:14px;background:var(--paper)}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:12px}
+th{color:var(--mute);font-weight:500}
+.payload{display:none;color:var(--mute)}
+tr.open .payload{display:block;margin-top:4px}
+button{font:12px/1 inherit;border:0;background:transparent;color:var(--noema-accent);cursor:pointer;padding:0}
+.empty{color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+  <h1>诊断</h1>
+  <p class="empty">独立于陪伴页。只读本页签已经收到的 noema.v1 帧，不连别的服务。</p>
+  <div class="bar">
+    <span id="session">session —</span>
+    <label><input id="hold" type="checkbox"> 暂停自动滚动</label>
+    <button id="refresh" type="button">刷新列表</button>
+    <a href="/">回到灯織</a>
+  </div>
+  <table>
+    <thead><tr><th>seq</th><th>type</th><th>run_id</th><th>event_id</th><th>时间</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="empty" id="empty">还没有帧。先在陪伴页连接。</p>
+</main>
+<script src="trace.js"></script>
+</body>
+</html>
