@@ -90,6 +90,34 @@ cd apps/android && ./gradlew :app:installDebug
 3. 杀 App / 断网重连后只重放已持久事件（`seq > last_seq`），同一句不会重跑。
 4. 重启 `cmd/noema` 后重连同一个 session，`seq` 继续而不是归零。
 
+### 已实测到哪一步（2026-11-04）
+
+这一栏分开写，避免把没跑的当成跑过的。
+
+**真跑过（真实二进制，不打 provider）**：
+
+```bash
+export NOEMA_HOME=/tmp/noema-probe/home
+export NOEMA_STATE_DIR=/tmp/noema-probe/state
+export NOEMA_BIND_KEY=probe-key-123
+go build -mod=readonly -o /tmp/noema ./cmd/noema
+/tmp/noema -listen 127.0.0.1:18787
+```
+
+| 请求 | 结果 |
+| --- | --- |
+| `GET /healthz`（无 key） | 200 |
+| `GET /v1/capabilities`（无 key） | 401 |
+| `GET /v1/capabilities`（错 key） | 401 |
+| `GET /v1/capabilities`（正确 key） | 200 + capability JSON |
+| `GET /v1/ws`（WebSocket 升级，无 key） | 401 |
+| `-listen` 且未设 `NOEMA_BIND_KEY` | 启动即报错退出，不监听 |
+| `NOEMA_STATE_DIR` | 生成 `sessions/` |
+
+**没跑过（缺条件，不算验收）**：正文流式输出、回合中 Stop 真取消、模拟器/真机重连重放。原因有两个，同时存在：没有可用的 `NOEMA_API_KEY`，也没有 adb / AVD。
+
+`internal/transport` 的 `TestRestartReplayAndIdempotentReconnect` 用 stub engine 走真实 TCP + 真实落盘，能覆盖发送、`seq` 落盘、重启续接、重放与幂等，但**覆盖不了「回合进行中点 Stop 会让模型/工具调用真的中止」**——那条测试的 `cancel` 是在 `done` 之后发的。真机联调时必须自己按这一条验。
+
 问题定位：
 
 - 401：App 里的 key 与后端不一致，或后端没设 `NOEMA_BIND_KEY`。
