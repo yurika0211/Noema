@@ -10,6 +10,8 @@ const draftEl = document.querySelector("#draft");
 const sendBtn = document.querySelector("#send");
 const stopBtn = document.querySelector("#stop");
 const stage = document.querySelector("#stage");
+const workEl = document.querySelector("#work");
+const workBody = document.querySelector("#work-body");
 
 const saved = JSON.parse(localStorage.getItem(STORE) || "{}");
 if (saved.ws) {
@@ -24,6 +26,7 @@ let socket = null;
 let sessionId = saved.sessionId || "";
 let lastSeq = Number(saved.lastSeq || 0);
 let requestId = "";
+let runId = "";
 let running = false;
 const seen = new Set(saved.seen || []);
 
@@ -37,6 +40,17 @@ function persist() {
 }
 
 function setStatus(text) { statusEl.textContent = text; }
+
+function showWork(on) {
+  if (!workEl) return;
+  workEl.hidden = !on;
+  if (!on) {
+    workEl.open = false;
+    if (workBody) workBody.textContent = "";
+    return;
+  }
+  if (workBody) workBody.textContent = runId ? runId : "还没有 run_id";
+}
 
 function setNote(text, err) {
   noteEl.textContent = text || "";
@@ -115,6 +129,7 @@ function connect() {
     if (socket !== mine) return;
     setStatus("已断开");
     running = false;
+    showWork(false);
     stopBtn.hidden = true;
     sendBtn.hidden = false;
   });
@@ -130,6 +145,10 @@ function onFrame(raw) {
   if (env.event_id) seen.add(env.event_id);
   if (typeof env.seq === "number" && env.seq > lastSeq) lastSeq = env.seq;
   if (env.session_id) sessionId = env.session_id;
+  if (env.run_id) {
+    runId = env.run_id;
+    if (running) showWork(true);
+  }
   const helloSession = env.payload && env.payload.session_id;
   if (env.type === "hello" && helloSession) sessionId = helloSession;
   persist();
@@ -139,6 +158,7 @@ function onFrame(raw) {
     running = true;
     stopBtn.hidden = false;
     sendBtn.hidden = true;
+    showWork(true);
     appendAssistant(text, env.event_id);
   }
   if (env.type === "done") {
@@ -146,6 +166,7 @@ function onFrame(raw) {
     const last = logEl.lastElementChild;
     if (last) last.dataset.closed = "1";
     running = false;
+    showWork(false);
     stopBtn.hidden = true;
     sendBtn.hidden = false;
   }
@@ -153,6 +174,7 @@ function onFrame(raw) {
     const last = logEl.lastElementChild;
     if (last) last.dataset.closed = "1";
     running = false;
+    showWork(false);
     stopBtn.hidden = true;
     sendBtn.hidden = false;
     setNote("已取消");
@@ -178,7 +200,9 @@ document.querySelector("#form").addEventListener("submit", (ev) => {
   if (!ok) { setNote("还没连上。展开底部连接。", true); return; }
   line("user", message, requestId);
   draftEl.value = "";
+  runId = "";
   running = true;
+  showWork(true);
   stopBtn.hidden = false;
   sendBtn.hidden = true;
   setNote("");

@@ -50,6 +50,8 @@ const nodes = {
   "#send": buttons.send,
   "#stop": buttons.stop,
   "#stage": { classList: { toggle(name, on) { this[name] = on; } } },
+  "#work": { hidden: true, open: false },
+  "#work-body": { textContent: "" },
   "#mode-label": { textContent: "" },
   "#connect": { addEventListener(type, fn) { listeners["connect:" + type] = fn; } },
   "#form": { addEventListener(type, fn) { listeners["form:" + type] = fn; } },
@@ -143,6 +145,15 @@ opened.handlers.message({ data: JSON.stringify({
   type: "content", seq: 2, event_id: "evt_2", session_id: "sess-web", payload: { text: "重复" },
 }) });
 assert.equal(log.children.filter((n) => n.className.includes("assistant")).length, 1);
+assert.equal(nodes["#work"].hidden, false);
+assert.equal(nodes["#work-body"].textContent, "还没有 run_id");
+
+opened.handlers.message({ data: JSON.stringify({
+  type: "content", seq: 2, event_id: "evt_2b", session_id: "sess-web", run_id: "run_sess_1", payload: { text: "。" },
+}) });
+assert.equal(nodes["#work"].hidden, false);
+assert.equal(nodes["#work-body"].textContent, "run_sess_1");
+assert.doesNotMatch(nodes["#work-body"].textContent, /\{/);
 
 listeners["stop:click"]();
 const cancel = opened.sent[opened.sent.length - 1];
@@ -152,6 +163,7 @@ opened.handlers.message({ data: JSON.stringify({
   type: "cancelled", seq: 3, event_id: "evt_3", payload: {},
 }) });
 assert.equal(note.textContent, "已取消");
+assert.equal(nodes["#work"].hidden, true);
 assert.equal(buttons.send.hidden, false);
 const again = JSON.parse(store["noema.web.sample.v1"]);
 assert.equal(again.sessionId, "sess-web");
