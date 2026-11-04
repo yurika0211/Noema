@@ -61,9 +61,11 @@ cp local.properties.example local.properties   # 填 sdk.dir
 
 `NOEMA_BIND_KEY` 存在 `EncryptedSharedPreferences`（`SettingsStore`），与后端是同一把 key；握手带 `Authorization: Bearer <key>`。
 
-## 模拟器一轮（命令已备，尚未真实联调）
+## 模拟器一轮（服务端与 Android 文本壳已过）
 
-下面是目标流程。**没有可用的真实 `NOEMA_API_KEY` 就没跑过**，不要当成已验收。
+2026-11-04 已用真实 provider 和 Node WebSocket 对 `127.0.0.1:8788` 跑过 `noema.v1`（当时 `8787` 是别的服务）。同一天 Android 模拟器连上同一套协议，见下面「Android 模拟器」。
+
+下面仍是再跑一遍时用的命令。
 
 ```bash
 # 1. 后端（loopback 也要 key）
@@ -83,10 +85,10 @@ cd apps/android && ./gradlew :app:installDebug
 # App 设置里填 ws://10.0.2.2:8787/v1/ws 和同一把 BIND_KEY
 ```
 
-验收要点：
+验收要点（服务端五条和 Android 一轮已记下；重启后续 `seq` 还没验）：
 
 1. 发一条，正文流式出现。
-2. Stop 取消当前回合，后端出现并持久化 `cancelled` 事件。
+2. 回合进行中 Stop，终态是 `cancelled`，不再补 `done`。
 3. 杀 App / 断网重连后只重放已持久事件（`seq > last_seq`），同一句不会重跑。
 4. 重启 `cmd/noema` 后重连同一个 session，`seq` 继续而不是归零。
 
@@ -114,16 +116,32 @@ go build -mod=readonly -o /tmp/noema ./cmd/noema
 | `-listen` 且未设 `NOEMA_BIND_KEY` | 启动即报错退出，不监听 |
 | `NOEMA_STATE_DIR` | 生成 `sessions/` |
 
-**没跑过（缺条件，不算验收）**：正文流式输出、回合中 Stop 真取消、模拟器/真机重连重放。原因有两个，同时存在：没有可用的 `NOEMA_API_KEY`，也没有 adb / AVD。
+**真实 provider，Node WebSocket**（2026-11-04，`127.0.0.1:8788`。握手 `Authorization: Bearer`，与文档同一把 bind key；key 不写在这里）：
 
-`internal/transport` 的 `TestRestartReplayAndIdempotentReconnect` 用 stub engine 走真实 TCP + 真实落盘，能覆盖发送、`seq` 落盘、重启续接、重放与幂等，但**覆盖不了「回合进行中点 Stop 会让模型/工具调用真的中止」**——那条测试的 `cancel` 是在 `done` 之后发的。真机联调时必须自己按这一条验。
+1. `GET /healthz` → 200 `ok`
+2. `GET /v1/capabilities`：无 key、错 key → 401；对 key → 200。`text_stream` / `cancel_turn` / `isolated_home_dir` = true，其余 false
+3. chat「用一两句话介绍你自己。不要用工具。」→ `content` #1–#13 后 `done` #14。自称灯織，安静、偏核对证据。`run=run_<session>_1`
+4. 同一 session `replay last_seq=0` → 正文一致，`replay_complete` 不占 `seq`
+5. 新 session「从 1 慢慢数到 80」，出现 `content` 后立刻 cancel → 含 `cancelled` #5，`done_count=0`，正文停在 1–7。这是回合进行中的 Stop，终态不是事后补上的 `cancelled`
+
+**Android 模拟器**（2026-11-04，#8 关闭。`Medium_Phone_API_37.0`，adb `emulator-5554`，debug 包 `app.noema.android.debug`。后端仍是上面的 `127.0.0.1:8788`。App 填 `ws://10.0.2.2:8788/v1/ws`，BIND_KEY 用文档里的开发值，不写在这里）：
+
+1. 空 key 连默认 `8787`：界面 `401 Unauthorized`，session 未分配。
+2. 改成 8788 后点连接：`connected`，session `1793775645690726002`。
+3. 发 `count slowly from 1 to 40`，出现「停止」就点。界面「已取消」，正文停在 28。
+4. 这条 session 的状态日志：`content` #1–#15，随后 `cancelled` #16，`done_count=0`。几秒后仍没有事后 `done`。
+5. 飞行模式断开再点「连接」：同一 session，日志仍是 1 个 run、16 条事件，没有新回合。
+
+**还没跑**：重启 `cmd/noema` 后再连同一 session（`seq` 跨进程）。记忆、关系、写工具。
+
+`internal/transport` 的 `TestRestartReplayAndIdempotentReconnect` 用 stub engine 走真实 TCP + 真实落盘，覆盖发送、`seq` 落盘、重启续接、重放与幂等。那条测试的 `cancel` 发在 `done` 之后。进行中取消的证据是上面第 5 条。
 
 问题定位：
 
 - 401：App 里的 key 与后端不一致，或后端没设 `NOEMA_BIND_KEY`。
 - 连接被拒：模拟器用 `10.0.2.2`，真机用电脑 LAN 地址；真机场景后端要 `-listen 0.0.0.0:8787`，此时 key 更不能省。
 - 重放为空：检查 `NOEMA_STATE_DIR/sessions/*.jsonl` 是否有内容，以及重连时 `last_seq` 是否已经是最新。
-- 没有真实 provider 时只能用测试代替：`internal/transport` 的 `TestRestartReplayAndIdempotentReconnect` 用 stub engine 走真实 TCP + 真实落盘，覆盖发一条、Stop、断线、重连重放与幂等。
+- 重启后续 `seq`、幂等、断线重放：看 `TestRestartReplayAndIdempotentReconnect`（stub）。2026-11-04 的真模型只覆盖了同一次进程里的正文流、`replay last_seq=0` 和进行中 cancel。
 
 ## CI
 
