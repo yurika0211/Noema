@@ -243,6 +243,14 @@ func TestBrowserTokenAndWebPage(t *testing.T) {
 	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "灯織") {
 		t.Fatalf("page status=%d", page.Code)
 	}
+	if strings.Contains(page.Body.String(), "event_id") {
+		t.Fatal("companion page lists event ids")
+	}
+	trace := httptest.NewRecorder()
+	handler.ServeHTTP(trace, httptest.NewRequest(http.MethodGet, "/trace", nil))
+	if trace.Code != http.StatusOK || !strings.Contains(trace.Body.String(), "诊断") {
+		t.Fatalf("trace status=%d", trace.Code)
+	}
 
 	ok := httptest.NewRecorder()
 	handler.ServeHTTP(ok, httptest.NewRequest(http.MethodGet, "/v1/capabilities?access_token=secret", nil))

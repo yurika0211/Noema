@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-//go:embed index.html app.js
+//go:embed index.html app.js trace.html trace.js
 var files embed.FS
 
 func Handler() http.Handler {
@@ -15,5 +15,11 @@ func Handler() http.Handler {
 	if err != nil {
 		return http.NotFoundHandler()
 	}
-	return http.FileServer(http.FS(sub))
+	filesHandler := http.FileServer(http.FS(sub))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/trace" {
+			r.URL.Path = "/trace.html"
+		}
+		filesHandler.ServeHTTP(w, r)
+	})
 }

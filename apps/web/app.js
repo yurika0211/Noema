@@ -1,5 +1,6 @@
 const PROTOCOL = "noema.v1";
 const STORE = "noema.web.sample.v1";
+const FRAMES = "noema.web.frames.v1";
 
 const wsInput = document.querySelector("#ws");
 const keyInput = document.querySelector("#key");
@@ -29,6 +30,26 @@ let requestId = "";
 let runId = "";
 let running = false;
 const seen = new Set(saved.seen || []);
+
+function rememberFrame(env) {
+  if (typeof sessionStorage === "undefined") return;
+  let list = [];
+  try { list = JSON.parse(sessionStorage.getItem(FRAMES) || "[]"); } catch { list = []; }
+  if (!Array.isArray(list)) list = [];
+  const payload = env.payload && typeof env.payload === "object" ? env.payload : {};
+  const keys = Object.keys(payload);
+  list.push({
+    seq: typeof env.seq === "number" ? env.seq : null,
+    type: env.type || "",
+    run_id: env.run_id || "",
+    event_id: env.event_id || "",
+    created_at: env.created_at || "",
+    session_id: env.session_id || "",
+    payload_keys: keys,
+    payload_bytes: JSON.stringify(payload).length,
+  });
+  sessionStorage.setItem(FRAMES, JSON.stringify(list.slice(-400)));
+}
 
 function persist() {
   localStorage.setItem(STORE, JSON.stringify({
@@ -141,6 +162,7 @@ function connect() {
 function onFrame(raw) {
   let env;
   try { env = JSON.parse(raw); } catch { setNote("无法解析的帧", true); return; }
+  rememberFrame(env);
   if (env.event_id && seen.has(env.event_id)) return;
   if (env.event_id) seen.add(env.event_id);
   if (typeof env.seq === "number" && env.seq > lastSeq) lastSeq = env.seq;
