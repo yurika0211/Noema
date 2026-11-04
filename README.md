@@ -78,7 +78,11 @@ cp local.properties.example local.properties   # 填 sdk.dir
 
 `./scripts/noema-up.sh` 起来之后，浏览器打开它打印的地址，例如 `http://127.0.0.1:8787/`。页面在 `apps/web`，由同一个进程提供，不直连 `lh serve`。
 
-页上的 WebSocket 默认是 `ws://127.0.0.1:8787/v1/ws`，BIND_KEY 填和后端同一把。浏览器不能设 `Authorization` 头，所以握手把 key 放在 `access_token` 查询参数里，服务端只在 `/v1/*` 上接受它。刷新后用本地记住的 session 和 `last_seq` 重放，不新开会话。Galgame 只换立绘和对白框的布局。活动和回忆是空卡片，标明未接入 / 模拟，点击不写记忆。
+页上的 WebSocket 默认是 `ws://127.0.0.1:8787/v1/ws`，BIND_KEY 填和后端同一把。浏览器不能设 `Authorization` 头，所以握手把 key 放在 `access_token` 查询参数里，服务端只在 `/v1/*` 上接受它。
+
+对话和剧场是同一 session。从「对话」切到「剧场」只换布局，不新开会话。刷新后用本地记住的 session 和 `last_seq` 发 `replay`，重放已有事件，不把同一句再跑一遍。`apps/web/app_test.js` 覆盖：hello 记下 session、发送、停止得到取消、`lastSeq` 留在本地。
+
+活动和回忆是空卡片，标明未接入 / 模拟，点击不写记忆。
 
 立绘是占位，不是正式资产。表情和 OpenUI 不在这一页。页脚「诊断」进 `/trace`，只列本页签收到的 seq、type、run_id、event_id、时间。payload 只显示字段名和字节数，不铺正文。
 
