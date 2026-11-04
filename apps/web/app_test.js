@@ -8,6 +8,11 @@ const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 assert.match(html, /灯織/);
 assert.match(html, /不会写入记忆/);
 assert.match(html, /ws:\/\/127\.0\.0\.1:8787\/v1\/ws/);
+assert.match(html, /--noema-bg:#f4f1ea/);
+assert.match(html, /--noema-ink:#1c1a16/);
+assert.match(html, /--noema-accent:#355e4b/);
+assert.match(html, /noema_bg \/ noema_ink \/ noema_accent/);
+assert.doesNotMatch(html, /var\(--bg\)|var\(--ink\)|var\(--leaf\)/);
 assert.doesNotMatch(src, /lh serve|localhost:8787\/api/);
 
 const store = {};
