@@ -6,8 +6,8 @@
 <title>灯織</title>
 <style>
 :root{
-  --bg:#f4f1ea;--paper:#fbf8f1;--ink:#1c1a16;--mute:#6a655c;--line:#e4ddd0;
-  --leaf:#355e4b;--leaf-dim:#dce6df;--you:#ebe4d6;--stop:#7a3a32;
+  --bg:#f4f1ea;--paper:#fbf8f1;--ink:#1c1a16;--mute:#7a756c;--line:#e4ddd0;
+  --leaf:#355e4b;--you:#ebe4d6;--stop:#7a3a32;--hair:#1a1816;--skin:#cfc6b8;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -15,66 +15,95 @@ body{
   margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.65 "Iowan Old Style","Palatino Linotype","Songti SC","Noto Serif SC",serif;
 }
-.app{min-height:100%;max-width:960px;margin:0 auto;padding:28px 28px 36px;display:flex;flex-direction:column;gap:18px}
-.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
-.who{display:flex;flex-direction:column;gap:4px}
-.who b{font:22px/1.2 "Songti SC","Noto Serif SC",serif;font-weight:500;letter-spacing:.08em}
-.who small,.status{color:var(--mute);font:12px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em}
-.modes{display:flex;gap:6px}
+.app{
+  min-height:100%;max-width:720px;margin:0 auto;
+  padding:22px 22px 28px;display:flex;flex-direction:column;gap:16px;
+}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.who b{font:20px/1.2 "Songti SC","Noto Serif SC",serif;font-weight:500;letter-spacing:.12em}
+.who small{display:block;margin-top:4px;color:var(--mute);font:11px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:.06em}
+.modes{display:flex;gap:14px}
 .modes button{
-  font:12px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.08em;
-  border:0;background:transparent;color:var(--mute);padding:6px 2px;cursor:pointer;
+  font:12px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;
+  border:0;background:transparent;color:var(--mute);padding:4px 0;cursor:pointer;
 }
 .modes button.on{color:var(--leaf);box-shadow:inset 0 -1px 0 var(--leaf)}
-.stage{flex:1;display:grid;grid-template-columns:220px minmax(0,1fr);gap:28px;min-height:0;align-items:stretch}
-.stage.gal{grid-template-columns:1fr;grid-template-rows:1fr auto}
+.stage{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:20px;
+  min-height:0;
+}
+.stage.chat{flex-direction:row;align-items:flex-start;gap:28px}
 .portrait{
-  background:linear-gradient(180deg,#eef3ee 0%,#e3ebe4 100%);
-  border-radius:2px 2px 40% 40%/2px 2px 12% 12%;
-  min-height:320px;position:relative;overflow:hidden;
+  flex:0 0 168px;width:168px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.portrait svg{width:168px;height:280px;display:block}
+.stage.gal{
+  position:relative;flex:1;display:flex;flex-direction:column;justify-content:flex-end;
+  min-height:62vh;padding:0 0 8px;
+}
+.stage.gal .portrait{
+  position:absolute;inset:0;width:auto;flex:none;
   display:flex;align-items:flex-end;justify-content:center;
+  pointer-events:none;
 }
-.portrait svg{width:78%;height:auto;margin-bottom:-6%;opacity:.92}
-.stage.gal .portrait{min-height:42vh;border-radius:2px}
+.stage.gal .portrait svg{width:min(280px,70%);height:auto;max-height:78%}
 .log{
-  display:flex;flex-direction:column;gap:14px;
-  min-height:280px;max-height:58vh;overflow:auto;padding:4px 2px 8px;
+  flex:1;min-width:0;width:100%;
+  display:flex;flex-direction:column;gap:12px;
+  max-height:52vh;overflow:auto;padding:2px 0 4px;
 }
-.stage.gal .log{max-height:none;min-height:0;padding:0}
-.bubble{max-width:92%}
-.bubble .meta{font:11px/1 ui-sans-serif,system-ui,sans-serif;color:var(--mute);letter-spacing:.12em;margin:0 0 6px}
+.stage.chat .log:empty{display:none}
+.stage.gal .log{
+  position:relative;z-index:1;max-height:none;overflow:visible;
+  min-height:0;gap:0;
+}
+.stage.gal .log:empty::after{
+  content:"……";
+  display:block;text-align:center;color:var(--mute);letter-spacing:.4em;padding:18px 0;
+}
+.bubble{max-width:36em}
+.bubble .meta{
+  font:11px/1 ui-sans-serif,system-ui,sans-serif;color:var(--mute);
+  letter-spacing:.14em;margin:0 0 4px;
+}
 .bubble .body{margin:0;white-space:pre-wrap}
 .bubble.user{margin-left:auto;text-align:right}
-.bubble.user .body{display:inline-block;background:var(--you);padding:10px 14px;border-radius:16px 16px 4px 16px;text-align:left}
-.bubble.assistant .body{color:var(--ink)}
-.stage.gal .bubble.user{display:none}
-.stage.gal .bubble.assistant{
-  background:color-mix(in srgb, var(--paper) 88%, transparent);
-  padding:18px 20px 16px;border-radius:2px;
+.bubble.user .body{
+  display:inline-block;background:var(--you);
+  padding:8px 12px;border-radius:14px 14px 4px 14px;text-align:left;
 }
-.stage.gal .bubble.assistant .meta{display:none}
-.stage.gal .bubble.assistant .body{font-size:18px;line-height:1.75}
+.stage.gal .bubble.user{display:none}
+.stage.gal .bubble.assistant{display:none}
+.stage.gal .bubble.assistant.current{
+  display:block;
+  background:color-mix(in srgb, var(--paper) 92%, transparent);
+  padding:16px 18px 14px;width:100%;max-width:none;
+}
+.stage.gal .bubble.assistant.current .meta{display:none}
+.stage.gal .bubble.assistant.current .body{font-size:18px;line-height:1.8}
 .composer{display:flex;gap:10px;align-items:flex-end}
 .composer textarea{
-  flex:1;min-height:52px;max-height:140px;resize:vertical;
-  font:15px/1.5 inherit;color:var(--ink);background:var(--paper);
-  border:0;border-bottom:1px solid var(--line);border-radius:0;padding:10px 2px;
+  flex:1;min-height:44px;max-height:120px;resize:none;
+  font:15px/1.5 inherit;color:var(--ink);background:transparent;
+  border:0;border-bottom:1px solid var(--line);border-radius:0;padding:8px 2px;
   outline:none;
 }
 .composer textarea:focus{border-bottom-color:var(--leaf)}
+.stage.gal ~ .composer textarea{text-align:center}
 .composer button{
-  font:13px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.08em;
-  border:0;background:var(--leaf);color:#f7f4ee;padding:12px 16px;border-radius:2px;cursor:pointer;
+  font:12px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;
+  border:0;background:transparent;color:var(--leaf);padding:8px 4px;cursor:pointer;
 }
-.composer button.stop{background:var(--stop)}
-.note{font:12px/1.5 ui-sans-serif,system-ui,sans-serif;color:var(--stop);min-height:1.2em}
-.quiet{display:flex;gap:20px;color:var(--mute);font:12px/1.5 ui-sans-serif,system-ui,sans-serif}
-.quiet button{border:0;background:none;color:inherit;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.composer button.stop{color:var(--stop)}
+.note{font:12px/1.5 ui-sans-serif,system-ui,sans-serif;color:var(--mute);min-height:0}
+.note.err{color:var(--stop)}
 details.setup{
   font:12px/1.5 ui-sans-serif,system-ui,sans-serif;color:var(--mute);
-  border-top:1px solid var(--line);padding-top:10px;
+  border-top:1px solid var(--line);padding-top:8px;margin-top:auto;
 }
-details.setup summary{cursor:pointer;letter-spacing:.08em}
+details.setup summary{cursor:pointer;letter-spacing:.08em;list-style:none}
+details.setup summary::-webkit-details-marker{display:none}
 .setup .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:10px}
 .setup label{display:flex;flex-direction:column;gap:4px}
 .setup input,.setup button{
@@ -82,10 +111,10 @@ details.setup summary{cursor:pointer;letter-spacing:.08em}
   background:var(--paper);border:1px solid var(--line);border-radius:2px;padding:7px 9px;
 }
 .setup button{cursor:pointer}
-@media(max-width:720px){
-  .app{padding:18px 16px 28px}
-  .stage{grid-template-columns:1fr}
-  .portrait{min-height:200px}
+@media(max-width:640px){
+  .app{padding:16px}
+  .stage.chat{flex-direction:column;align-items:center}
+  .portrait svg{width:140px;height:230px}
 }
 </style>
 </head>
@@ -101,31 +130,30 @@ details.setup summary{cursor:pointer;letter-spacing:.08em}
       <button id="mode-gal" type="button">剧场</button>
     </nav>
   </header>
-  <div class="stage" id="stage">
-    <div class="portrait" aria-label="灯織">
-      <svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path fill="#1c1a16" d="M80 28c18 0 34 16 36 38 2 18-4 32-10 42 8 6 14 16 14 28 0 22-18 40-40 40s-40-18-40-40c0-12 6-22 14-28-6-10-12-24-10-42C46 44 62 28 80 28z"/>
-        <circle cx="68" cy="78" r="3.2" fill="#c9c4b8"/>
-        <circle cx="92" cy="78" r="3.2" fill="#c9c4b8"/>
-        <path fill="#355e4b" d="M104 52c6-2 11 3 10 9-4 2-8 1-10-9z"/>
-        <path fill="#f7f4ee" d="M58 118h44c8 18 6 36-2 52H60c-8-16-10-34-2-52z"/>
-        <path fill="#2f5644" d="M56 148h48c2 14-2 28-10 38H66c-8-10-12-24-10-38z"/>
+  <div class="stage chat" id="stage">
+    <div class="portrait" aria-hidden="true">
+      <svg viewBox="0 0 168 280" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="84" cy="268" rx="46" ry="8" fill="#e8e2d6"/>
+        <path fill="#2a4d3e" d="M54 168h60l6 92H48z"/>
+        <path fill="#f3efe6" d="M58 156h52v28H58z"/>
+        <path fill="var(--hair)" d="M84 18c28 2 48 22 52 52 3 22-2 38-10 52 12 8 18 22 16 38-3 24-22 40-46 44-28 4-52-12-58-38-4-18 2-32 12-42C42 110 36 92 40 68 46 36 62 16 84 18z"/>
+        <path fill="var(--hair)" d="M38 92c-10 28-8 70 6 108h18c-16-32-22-70-8-108z"/>
+        <path fill="var(--hair)" d="M130 92c10 28 8 70-6 108h-18c16-32 22-70 8-108z"/>
+        <path fill="var(--skin)" d="M62 78c2 28 10 46 22 50 12-4 20-22 22-50-8-18-36-18-44 0z"/>
+        <circle cx="74" cy="98" r="2.4" fill="#3a3834"/>
+        <circle cx="94" cy="98" r="2.4" fill="#3a3834"/>
+        <path fill="#4a8a52" d="M108 58l8-10 4 11-7 4z"/>
+        <path fill="#2f6a38" d="M116 48l7 3-2 9-6-2z"/>
       </svg>
     </div>
     <div class="log" id="log"></div>
   </div>
   <form class="composer" id="form">
-    <textarea id="draft" placeholder="和她说话" rows="2"></textarea>
+    <textarea id="draft" placeholder="和她说话" rows="1"></textarea>
     <button id="send" type="submit">发送</button>
     <button id="stop" class="stop" type="button" hidden>停止</button>
   </form>
   <div class="note" id="note"></div>
-  <div class="quiet">
-    <span>活动未接入</span>
-    <button type="button" data-empty="活动">说明</button>
-    <span>回忆未接入</span>
-    <button type="button" data-empty="回忆">说明</button>
-  </div>
   <details class="setup">
     <summary>连接</summary>
     <div class="bar">
@@ -133,6 +161,7 @@ details.setup summary{cursor:pointer;letter-spacing:.08em}
       <label>密钥<input id="key" type="password" autocomplete="off" size="16"></label>
       <button id="connect" type="button">连接</button>
     </div>
+    <p style="margin:10px 0 0">活动、回忆尚未接入。点这里不会写入记忆。</p>
   </details>
 </div>
 <script src="app.js"></script>

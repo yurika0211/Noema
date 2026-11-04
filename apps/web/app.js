@@ -38,6 +38,16 @@ function persist() {
 
 function setStatus(text) { statusEl.textContent = text; }
 
+function setNote(text, err) {
+  noteEl.textContent = text || "";
+  noteEl.classList.toggle("err", Boolean(err && text));
+}
+
+function markCurrentLine() {
+  const asst = logEl.querySelectorAll(".bubble.assistant");
+  asst.forEach((n, i) => n.classList.toggle("current", i === asst.length - 1));
+}
+
 function line(role, text, id) {
   const node = document.createElement("div");
   node.className = "bubble " + role;
@@ -52,6 +62,7 @@ function line(role, text, id) {
   node.appendChild(body);
   logEl.appendChild(node);
   node.scrollIntoView({ block: "nearest" });
+  markCurrentLine();
   return node;
 }
 
@@ -62,6 +73,7 @@ function appendAssistant(text, id) {
     const body = last.querySelector(".body");
     if (body) body.textContent += text;
     else last.textContent += text;
+    markCurrentLine();
   } else {
     line("assistant", text, id);
   }
@@ -82,7 +94,7 @@ function send(obj) {
 }
 
 function connect() {
-  noteEl.textContent = "";
+  setNote("");
   const previous = socket;
   const key = keyInput.value.trim();
   const url = new URL(wsURL());
@@ -106,12 +118,14 @@ function connect() {
     stopBtn.hidden = true;
     sendBtn.hidden = false;
   });
-  socket.addEventListener("error", () => { noteEl.textContent = "连接失败。检查地址、BIND_KEY，以及页面是否由这个 noema 进程打开。"; });
+  socket.addEventListener("error", () => {
+    setNote("连不上。展开底部连接，核对地址和密钥。", true);
+  });
 }
 
 function onFrame(raw) {
   let env;
-  try { env = JSON.parse(raw); } catch { noteEl.textContent = "无法解析的帧"; return; }
+  try { env = JSON.parse(raw); } catch { setNote("无法解析的帧", true); return; }
   if (env.event_id && seen.has(env.event_id)) return;
   if (env.event_id) seen.add(env.event_id);
   if (typeof env.seq === "number" && env.seq > lastSeq) lastSeq = env.seq;
@@ -141,9 +155,9 @@ function onFrame(raw) {
     running = false;
     stopBtn.hidden = true;
     sendBtn.hidden = false;
-    noteEl.textContent = "已取消";
+    setNote("已取消");
   }
-  if (env.type === "error") noteEl.textContent = text || "error";
+  if (env.type === "error") setNote(text || "error", true);
   if (env.type === "replay_complete") setStatus("已重放 · " + (sessionId || ""));
 }
 
@@ -161,13 +175,13 @@ document.querySelector("#form").addEventListener("submit", (ev) => {
     character_id: "hiori",
     payload: { message },
   });
-  if (!ok) { noteEl.textContent = "未连接"; return; }
+  if (!ok) { setNote("还没连上。展开底部连接。", true); return; }
   line("user", message, requestId);
   draftEl.value = "";
   running = true;
   stopBtn.hidden = false;
   sendBtn.hidden = true;
-  noteEl.textContent = "";
+  setNote("");
 });
 stopBtn.addEventListener("click", () => {
   if (!requestId) return;
@@ -181,16 +195,13 @@ stopBtn.addEventListener("click", () => {
 
 function setMode(gal) {
   stage.classList.toggle("gal", gal);
+  stage.classList.toggle("chat", !gal);
   document.querySelector("#mode-chat").classList.toggle("on", !gal);
   document.querySelector("#mode-gal").classList.toggle("on", gal);
+  markCurrentLine();
 }
 document.querySelector("#mode-chat").addEventListener("click", () => setMode(false));
 document.querySelector("#mode-gal").addEventListener("click", () => setMode(true));
-document.querySelectorAll("[data-empty]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    noteEl.textContent = btn.dataset.empty + "未接入 / 模拟。没有写入记忆。";
-  });
-});
 
 if (sessionId && keyInput.value.trim()) {
   connect();

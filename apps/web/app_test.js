@@ -6,14 +6,13 @@ const html = fs.readFileSync(__dirname + "/index.html", "utf8");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 
 assert.match(html, /灯織/);
-assert.match(html, /活动未接入/);
-assert.match(html, /回忆未接入/);
+assert.match(html, /不会写入记忆/);
 assert.match(html, /ws:\/\/127\.0\.0\.1:8787\/v1\/ws/);
 assert.doesNotMatch(src, /lh serve|localhost:8787\/api/);
 
 const store = {};
 const log = { children: [] };
-const note = { textContent: "" };
+const note = { textContent: "", classList: { toggle() {} } };
 const status = { textContent: "" };
 const buttons = {
   send: { hidden: false, addEventListener() {} },
@@ -36,6 +35,10 @@ const nodes = {
   "#log": {
     lastElementChild: null,
     appendChild(node) { this.lastElementChild = node; log.children.push(node); },
+    querySelectorAll(sel) {
+      if (sel === ".bubble.assistant") return log.children.filter((n) => n.className.includes("assistant"));
+      return [];
+    },
   },
   "#note": note,
   "#draft": Object.assign(el("draft"), { value: "你好" }),
@@ -84,14 +87,18 @@ const sandbox = {
       };
       node.classList = {
         contains(name) { return node.className.split(/\s+/).includes(name); },
+        toggle(name, on) {
+          const parts = node.className.split(/\s+/).filter(Boolean);
+          const has = parts.includes(name);
+          if (on && !has) parts.push(name);
+          if (!on && has) parts.splice(parts.indexOf(name), 1);
+          node.className = parts.join(" ");
+        },
       };
       return node;
     },
     querySelector: (sel) => nodes[sel],
-    querySelectorAll: () => [{
-      dataset: { empty: "回忆" },
-      addEventListener(type, fn) { listeners["empty:" + type] = fn; },
-    }],
+    querySelectorAll: () => [],
   },
   WebSocket: FakeSocket,
   crypto: { randomUUID: () => "req-web-1" },
@@ -145,8 +152,6 @@ const again = JSON.parse(store["noema.web.sample.v1"]);
 assert.equal(again.sessionId, "sess-web");
 assert.equal(again.lastSeq, 3);
 
-listeners["empty:click"]();
-assert.match(note.textContent, /未接入/);
 assert.doesNotMatch(JSON.stringify(opened.sent), /memory|remember/i);
 
 console.log("web sample ok");
