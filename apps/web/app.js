@@ -10,10 +10,14 @@ const draftEl = document.querySelector("#draft");
 const sendBtn = document.querySelector("#send");
 const stopBtn = document.querySelector("#stop");
 const stage = document.querySelector("#stage");
-const modeLabel = document.querySelector("#mode-label");
 
 const saved = JSON.parse(localStorage.getItem(STORE) || "{}");
-if (saved.ws) wsInput.value = saved.ws;
+if (saved.ws) {
+  wsInput.value = saved.ws;
+} else if (typeof location !== "undefined" && location.host) {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  wsInput.value = proto + "//" + location.host + "/v1/ws";
+}
 if (saved.key) keyInput.value = saved.key;
 
 let socket = null;
@@ -26,7 +30,6 @@ const seen = new Set(saved.seen || []);
 function persist() {
   localStorage.setItem(STORE, JSON.stringify({
     ws: wsInput.value.trim(),
-    key: keyInput.value,
     sessionId,
     lastSeq,
     seen: [...seen].slice(-400),
@@ -39,7 +42,14 @@ function line(role, text, id) {
   const node = document.createElement("div");
   node.className = "bubble " + role;
   node.dataset.id = id || "";
-  node.textContent = (role === "user" ? "你\n" : "灯織\n") + text;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = role === "user" ? "你" : "灯織";
+  const body = document.createElement("p");
+  body.className = "body";
+  body.textContent = text;
+  node.appendChild(meta);
+  node.appendChild(body);
   logEl.appendChild(node);
   node.scrollIntoView({ block: "nearest" });
   return node;
@@ -49,7 +59,9 @@ function appendAssistant(text, id) {
   if (!text) return;
   const last = logEl.lastElementChild;
   if (last && last.classList.contains("assistant") && !last.dataset.closed) {
-    last.textContent += text;
+    const body = last.querySelector(".body");
+    if (body) body.textContent += text;
+    else last.textContent += text;
   } else {
     line("assistant", text, id);
   }
@@ -171,7 +183,6 @@ function setMode(gal) {
   stage.classList.toggle("gal", gal);
   document.querySelector("#mode-chat").classList.toggle("on", !gal);
   document.querySelector("#mode-gal").classList.toggle("on", gal);
-  modeLabel.textContent = gal ? "Galgame · 同一 session" : "聊天";
 }
 document.querySelector("#mode-chat").addEventListener("click", () => setMode(false));
 document.querySelector("#mode-gal").addEventListener("click", () => setMode(true));

@@ -6,8 +6,8 @@ const html = fs.readFileSync(__dirname + "/index.html", "utf8");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 
 assert.match(html, /灯織/);
-assert.match(html, /静态立绘位/);
-assert.match(html, /未接入 \/ 模拟/);
+assert.match(html, /活动未接入/);
+assert.match(html, /回忆未接入/);
 assert.match(html, /ws:\/\/127\.0\.0\.1:8787\/v1\/ws/);
 assert.doesNotMatch(src, /lh serve|localhost:8787\/api/);
 
@@ -71,11 +71,16 @@ const sandbox = {
   },
   document: {
     createElement() {
+      const kids = {};
       const node = {
         className: "",
         dataset: {},
         textContent: "",
         scrollIntoView() {},
+        appendChild(child) {
+          if (child.className) kids["." + child.className] = child;
+        },
+        querySelector(sel) { return kids[sel] || null; },
       };
       node.classList = {
         contains(name) { return node.className.split(/\s+/).includes(name); },
