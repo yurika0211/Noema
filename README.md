@@ -14,17 +14,29 @@
 - Android 文本壳：`apps/android`
 - 角色原则：`characters/hiori/SOUL.md`（初始化写入独立 HomeDir，不是逐轮注入）
 - Estuary 契约字段（只有 schema，未起服务）：`docs/estuary-event.schema.json`
+- 为什么嵌入 SDK、不起 Estuary 服务：`docs/adr/0001-embed-sdk.md`
+- 回合观测：stderr 一行 `component=turn`，只有协议版本、session、run、client_request_id、状态、耗时、首段时间和字节数。不写对话正文
 - 当前 SDK pin **没有** 宿主上下文、审批回传、`ui_delta`。对应方法返回 `unsupported`。
 
 相关记录：[Issue #1](https://github.com/yurika0211/Noema/issues/1)
 
 ## 运行后端
 
+变量名见 `.env.example`。不要把真实 key 写进仓库。
+
 ```bash
-export NOEMA_API_KEY=...          # 模型供应商密钥
+export NOEMA_API_KEY=...          # 模型供应商密钥。live 模式必填
 export NOEMA_BIND_KEY=...         # 必填。没有它 /v1/* 一律 401，loopback 也一样
 export NOEMA_HOME=/var/lib/noema/owners/demo/characters/hiori/lucky-home
 export NOEMA_STATE_DIR=/var/lib/noema/state   # 可选，默认 data/noema-state
+./scripts/noema-up.sh
+```
+
+`scripts/noema-up.sh` 就是上面这条 `go run ./cmd/noema -listen`，默认 `127.0.0.1:8787`（可用 `NOEMA_LISTEN` 改）。没有 `NOEMA_BIND_KEY` 直接退出。`NOEMA_HOME` 含 `.luckyagent` 直接退出。`NOEMA_MODE=live`（默认）在没有 `NOEMA_API_KEY` 时退出，并提示改用 probe。`NOEMA_MODE=probe` 只把进程拉起来供 `/healthz` 和 `/v1/capabilities`，不证明模型回合。
+
+等价的手写命令：
+
+```bash
 GOWORK=off go run ./cmd/noema -listen 127.0.0.1:8787
 ```
 
