@@ -80,7 +80,7 @@ cp local.properties.example local.properties   # 填 sdk.dir
 
 页上的 WebSocket 默认是 `ws://127.0.0.1:8787/v1/ws`，BIND_KEY 填和后端同一把。浏览器不能设 `Authorization` 头，所以握手把 key 放在 `access_token` 查询参数里，服务端只在 `/v1/*` 上接受它。刷新后用本地记住的 session 和 `last_seq` 重放，不新开会话。Galgame 只换立绘和对白框的布局。活动和回忆是空卡片，标明未接入 / 模拟，点击不写记忆。
 
-立绘是占位，不是正式资产。表情、OpenUI、DevTools 不在这一页。
+立绘是占位，不是正式资产。表情和 OpenUI 不在这一页。页脚「诊断」进 `/trace`，只列本页签收到的 seq、type、run_id、event_id、时间。payload 只显示字段名和字节数，不铺正文。
 
 ## 模拟器一轮（服务端与 Android 文本壳已过）
 
