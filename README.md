@@ -61,11 +61,11 @@ cp local.properties.example local.properties   # 填 sdk.dir
 
 `NOEMA_BIND_KEY` 存在 `EncryptedSharedPreferences`（`SettingsStore`），与后端是同一把 key；握手带 `Authorization: Bearer <key>`。
 
-## 模拟器一轮（服务端 WS 真模型已过，Android 未过）
+## 模拟器一轮（服务端与 Android 文本壳已过）
 
-2026-11-04 已用真实 provider 和 Node WebSocket 对 `127.0.0.1:8788` 跑过 `noema.v1`（当时 `8787` 是别的服务）。正文流和回合进行中的取消都有记录，见下面「真实 provider」。Android / adb / 模拟器没跑，App 联调还没过。
+2026-11-04 已用真实 provider 和 Node WebSocket 对 `127.0.0.1:8788` 跑过 `noema.v1`（当时 `8787` 是别的服务）。同一天 Android 模拟器连上同一套协议，见下面「Android 模拟器」。
 
-下面仍是 App 要走的命令。
+下面仍是再跑一遍时用的命令。
 
 ```bash
 # 1. 后端（loopback 也要 key）
@@ -85,7 +85,7 @@ cd apps/android && ./gradlew :app:installDebug
 # App 设置里填 ws://10.0.2.2:8787/v1/ws 和同一把 BIND_KEY
 ```
 
-验收要点（服务端 1、2 与同连接重放已在「真实 provider」记下；App 与重启后续 `seq` 还没验）：
+验收要点（服务端五条和 Android 一轮已记下；重启后续 `seq` 还没验）：
 
 1. 发一条，正文流式出现。
 2. 回合进行中 Stop，终态是 `cancelled`，不再补 `done`。
@@ -124,7 +124,15 @@ go build -mod=readonly -o /tmp/noema ./cmd/noema
 4. 同一 session `replay last_seq=0` → 正文一致，`replay_complete` 不占 `seq`
 5. 新 session「从 1 慢慢数到 80」，出现 `content` 后立刻 cancel → 含 `cancelled` #5，`done_count=0`，正文停在 1–7。这是回合进行中的 Stop，终态不是事后补上的 `cancelled`
 
-**还没跑**：Android / adb / 模拟器（App 里的 Stop 是否同样取消）。重启 `cmd/noema` 后再连同一 session（`seq` 跨进程）。记忆、关系、写工具。
+**Android 模拟器**（2026-11-04，#8 关闭。`Medium_Phone_API_37.0`，adb `emulator-5554`，debug 包 `app.noema.android.debug`。后端仍是上面的 `127.0.0.1:8788`。App 填 `ws://10.0.2.2:8788/v1/ws`，BIND_KEY 用文档里的开发值，不写在这里）：
+
+1. 空 key 连默认 `8787`：界面 `401 Unauthorized`，session 未分配。
+2. 改成 8788 后点连接：`connected`，session `1793775645690726002`。
+3. 发 `count slowly from 1 to 40`，出现「停止」就点。界面「已取消」，正文停在 28。
+4. 这条 session 的状态日志：`content` #1–#15，随后 `cancelled` #16，`done_count=0`。几秒后仍没有事后 `done`。
+5. 飞行模式断开再点「连接」：同一 session，日志仍是 1 个 run、16 条事件，没有新回合。
+
+**还没跑**：重启 `cmd/noema` 后再连同一 session（`seq` 跨进程）。记忆、关系、写工具。
 
 `internal/transport` 的 `TestRestartReplayAndIdempotentReconnect` 用 stub engine 走真实 TCP + 真实落盘，覆盖发送、`seq` 落盘、重启续接、重放与幂等。那条测试的 `cancel` 发在 `done` 之后。进行中取消的证据是上面第 5 条。
 
