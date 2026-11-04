@@ -16,6 +16,7 @@ import (
 	"github.com/yurika0211/Noema/internal/adapters/lucky"
 	"github.com/yurika0211/Noema/internal/engine"
 	"github.com/yurika0211/Noema/internal/eventlog"
+	"github.com/yurika0211/Noema/internal/observe"
 	"github.com/yurika0211/Noema/internal/transport"
 )
 
@@ -87,6 +88,7 @@ func run(args []string) error {
 			CharacterID: "hiori",
 			Engine:      adapter,
 			Log:         logStore,
+			Observe:     observe.New(os.Stderr),
 		}
 		errCh := make(chan error, 1)
 		go func() { errCh <- srv.ListenAndServe() }()

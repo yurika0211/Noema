@@ -16,6 +16,7 @@ import (
 
 	"github.com/yurika0211/Noema/internal/engine"
 	"github.com/yurika0211/Noema/internal/eventlog"
+	"github.com/yurika0211/Noema/internal/observe"
 	"github.com/yurika0211/Noema/internal/protocol"
 )
 
@@ -41,16 +42,21 @@ type Server struct {
 	CharacterID string
 	Engine      engine.Engine
 	Log         *eventlog.Store
+	Observe     *observe.Logger
 
 	mu      sync.Mutex
 	httpSrv *http.Server
 	ready   chan struct{}
+
+	// turns 是还没结束的 forward。测试用来等日志写完，不靠 sleep。
+	turns sync.WaitGroup
 }
 
 func (s *Server) ListenAndServe() error {
 	if s.Log == nil {
 		s.Log = eventlog.New()
 	}
+
 	if s.CharacterID == "" {
 		s.CharacterID = "hiori"
 	}
@@ -308,9 +314,17 @@ func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, 
 		return "", err
 	}
 	if replay {
+		turn := s.Observe.Start(protocol.Version, sessionID, runID, env.ClientRequestID)
+		n := 0
 		for _, ev := range s.Log.ForRequest(sessionID, env.ClientRequestID) {
+			raw, err := ev.Bytes()
+			if err == nil {
+				n += len(raw)
+			}
 			_ = writeJSON(conn, ev)
 		}
+		s.Observe.AddBytes(turn, n)
+		s.Observe.Finish(turn, "replay", "")
 		return runID, nil
 	}
 	events, err := s.Engine.StartTurn(ctx, engine.RunRequest{
@@ -321,19 +335,60 @@ func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, 
 		ClientRequestID: env.ClientRequestID,
 	})
 	if err != nil {
+		turn := s.Observe.Start(protocol.Version, sessionID, runID, env.ClientRequestID)
+		s.Observe.Finish(turn, "error", errClass(err))
 		return "", err
 	}
-	go s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, events)
+	s.turns.Add(1)
+	go func() {
+		defer s.turns.Done()
+		s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, events)
+	}()
 	return runID, nil
 }
 
+// WaitTurns 等到已经启动的 forward 都返回。超时返回 false。
+func (s *Server) WaitTurns(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		s.turns.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+func errClass(err error) string {
+	switch {
+	case err == nil:
+		return "-"
+	case errors.Is(err, engine.ErrInvalidRequest):
+		return "invalid_request"
+	case errors.Is(err, engine.ErrUnsupported):
+		return "unsupported"
+	case errors.Is(err, engine.ErrNotFound):
+		return "not_found"
+	default:
+		return "turn_failed"
+	}
+}
+
 func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, clientRequestID string, events <-chan engine.RunEvent) {
+	turn := s.Observe.Start(protocol.Version, sessionID, runID, clientRequestID)
+	status := "cancelled"
+	class := "cancelled"
 	for {
 		select {
 		case <-ctx.Done():
+			s.Observe.Finish(turn, status, class)
 			return
 		case ev, ok := <-events:
 			if !ok {
+				s.Observe.Finish(turn, status, class)
 				return
 			}
 			out := protocol.Envelope{
@@ -343,31 +398,44 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 				SessionID:       sessionID,
 				CharacterID:     s.CharacterID,
 			}
+			visible := 0
 			switch ev.Type {
 			case engine.EventContent:
+				visible = len(ev.Content)
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
 			case engine.EventDone:
+				visible = len(ev.Content)
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
+				status, class = "done", "-"
 			case engine.EventError:
 				msg := "turn failed"
 				if ev.Err != nil {
 					msg = ev.Err.Error()
 				}
 				out.Payload = eventlog.MustPayload(protocol.ErrorPayload{Error: msg})
+				status, class = "error", errClass(ev.Err)
 			case engine.EventCancelled:
 				out.Type = protocol.TypeCancelled
+				status, class = "cancelled", "cancelled"
 			case engine.EventApproval:
 				out.Type = protocol.TypeError
 				out.Payload = eventlog.MustPayload(protocol.ErrorPayload{Error: engine.Unsupported("approval_resolution").Error()})
+				status, class = "error", "unsupported"
+			}
+			if visible > 0 {
+				s.Observe.FirstByte(turn, visible)
 			}
 			stored, err := s.Log.Append(sessionID, out)
 			if err != nil {
+				s.Observe.Finish(turn, "error", "log_append")
 				return
 			}
 			if err := writeJSON(conn, stored); err != nil {
+				s.Observe.Finish(turn, status, class)
 				return
 			}
 			if ev.Type == engine.EventDone || ev.Type == engine.EventError || ev.Type == engine.EventCancelled {
+				s.Observe.Finish(turn, status, class)
 				return
 			}
 		}

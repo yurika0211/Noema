@@ -12,8 +12,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"bytes"
+
 	"github.com/yurika0211/Noema/internal/engine"
 	"github.com/yurika0211/Noema/internal/eventlog"
+	"github.com/yurika0211/Noema/internal/observe"
 	"github.com/yurika0211/Noema/internal/protocol"
 )
 
@@ -228,6 +231,55 @@ func TestChatReplayAndCancel(t *testing.T) {
 		default:
 			t.Fatalf("unexpected %s", ev.Type)
 		}
+	}
+}
+
+func TestTurnLogRecordsTimingWithoutBody(t *testing.T) {
+	var buf bytes.Buffer
+	eng := &stubEngine{
+		sessionID: "sess-obs",
+		events: []engine.RunEvent{
+			{Type: engine.EventContent, Content: "私密句子不该出现在日志"},
+			{Type: engine.EventDone},
+		},
+	}
+	obs := observe.New(&buf)
+	srv := &Server{Engine: eng, Log: eventlog.New(), CharacterID: "hiori", Observe: obs}
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv.handleWS(w, r)
+	}))
+	defer httpSrv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpSrv.URL, "http") + "/v1/ws?session=sess-obs"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = readEnv(t, conn)
+	payload, _ := json.Marshal(protocol.ChatPayload{Message: "用户原文也不该出现"})
+	if err := conn.WriteJSON(protocol.Envelope{
+		Protocol: protocol.Version, Type: protocol.TypeChat, ClientRequestID: "req-obs", Payload: payload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		ev := readEnv(t, conn)
+		if ev.Type == protocol.TypeDone {
+			break
+		}
+	}
+	if !srv.WaitTurns(2 * time.Second) {
+		t.Fatal("forward did not finish")
+	}
+	line := buf.String()
+	for _, want := range []string{"component=turn", "protocol=noema.v1", "session_id=sess-obs", "status=done", "client_request_id=req-obs", "first_byte_ms="} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("missing %s in %s", want, line)
+		}
+	}
+	if strings.Contains(line, "私密") || strings.Contains(line, "用户原文") {
+		t.Fatalf("body leaked: %s", line)
 	}
 }
 
