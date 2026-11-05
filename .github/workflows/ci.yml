@@ -37,6 +37,8 @@ jobs:
         run: go test -mod=readonly -race ./...
       - name: build
         run: go build -mod=readonly -o bin/noema ./cmd/noema
+      - name: noema color tokens
+        run: node scripts/check-noema-tokens.mjs
       # 不打真实模型：上面所有测试只用 stub engine，不需要 NOEMA_API_KEY。
 
   android:
