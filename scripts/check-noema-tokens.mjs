@@ -42,6 +42,30 @@ for (const [key, hex] of Object.entries(tokens)) {
   }
 }
 
+const space = JSON.parse(readFileSync(join(root, "apps/tokens/space.json"), "utf8"));
+const spaceCss = {
+  space_page: "--space-page",
+  space_block: "--space-block",
+  space_tight: "--space-tight",
+  measure: "--measure",
+};
+for (const [key, raw] of Object.entries(space)) {
+  const want = String(raw);
+  const css = spaceCss[key];
+  if (!css) {
+    problems.push(key + " has no css name");
+    continue;
+  }
+  const cssHit = rootBlock[1].match(new RegExp(css.replaceAll("-", "\\-") + "\\s*:\\s*(\\d+)px"));
+  if (!cssHit || cssHit[1] !== want) {
+    problems.push("css " + css + " is " + (cssHit ? cssHit[1] : "missing") + ", want " + want);
+  }
+  const ktHit = kt.match(new RegExp("val " + key + " = (\\d+)\\.dp"));
+  if (!ktHit || ktHit[1] !== want) {
+    problems.push("kt " + key + " is " + (ktHit ? ktHit[1] : "missing") + ", want " + want);
+  }
+}
+
 if (problems.length) fail(problems.join("\n"));
 
 function fail(message) {

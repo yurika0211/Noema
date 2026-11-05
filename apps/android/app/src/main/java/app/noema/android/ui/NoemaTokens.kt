@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 // 与 res/values/colors.xml 同名同值，再与 apps/web/index.html :root 手对齐。
 object NoemaColors {
@@ -14,6 +15,13 @@ object NoemaColors {
     val noema_mute = Color(0xFF7A756C)
     val noema_you = Color(0xFFEBE4D6)
     val noema_stop = Color(0xFF7A3A32)
+}
+
+object NoemaSpace {
+    val space_page = 22.dp
+    val space_block = 16.dp
+    val space_tight = 8.dp
+    val measure = 720.dp
 }
 
 private val NoemaScheme = lightColorScheme(

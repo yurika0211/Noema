@@ -40,7 +40,7 @@ fun ChatScreen(model: ChatViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(NoemaColors.noema_bg)
-            .padding(16.dp),
+            .padding(NoemaSpace.space_block),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("灯織", style = MaterialTheme.typography.headlineSmall, color = NoemaColors.noema_ink)
@@ -75,7 +75,7 @@ fun ChatScreen(model: ChatViewModel) {
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(NoemaSpace.space_tight),
         ) {
             items(state.lines, key = { it.id }) { line ->
                 val mine = line.role == "user"
@@ -90,7 +90,7 @@ fun ChatScreen(model: ChatViewModel) {
             }
         }
         state.error?.let { Text(it, color = NoemaColors.noema_stop) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(NoemaSpace.space_tight), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = state.draft,
                 onValueChange = model::updateDraft,
