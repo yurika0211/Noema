@@ -107,8 +107,6 @@ github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zI
 github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
 github.com/yurika0211/aestus v0.1.0 h1:ot1UPyRTq/c5tVRuvreypZDyclh/nqa8MiR23LxXDcY=
 github.com/yurika0211/aestus v0.1.0/go.mod h1:xG8WJ/alq0XpbVK6A+uRCHpsV8uO9E5eYuwuAlnYYTo=
-github.com/yurika0211/estuary v0.0.0-20261112175710-382a6215a83f h1:br90hCgSLMuCED/6Mz8VBUZ8rEcEBB/urBRs3fi9do0=
-github.com/yurika0211/estuary v0.0.0-20261112175710-382a6215a83f/go.mod h1:YZw6j8sSad+25i9i2Jwq7UF/WcTYVJ8D7a3+sLnWukk=
 github.com/yurika0211/lucky-agent/agent v0.3.2-0.20261029174731-fed6282cdb6c h1:liF/t3grtN0Th6bqZm6HoTcoXF2XzVpNXlY68ObJkg8=
 github.com/yurika0211/lucky-agent/agent v0.3.2-0.20261029174731-fed6282cdb6c/go.mod h1:HQ++1lg3QBlXFp212tBJxcdsKjQkJHpYPc0FJw6sMhs=
 github.com/yurika0211/luckyagent-app v0.4.3-0.20261029222614-74ba20f1d92e h1:xrKGreStDFgwhGmdHS0PtZuD0MlFzzakJeyrGxmYFmM=

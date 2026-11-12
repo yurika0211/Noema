@@ -14,7 +14,7 @@
 - Android 文本壳：`apps/android`
 - Web 样品：`apps/web`（由 `-listen` 提供，不是 Lucky 工作台）
 - 角色原则：`characters/hiori/SOUL.md`（初始化写入独立 HomeDir，不是逐轮注入）
-- Estuary 契约：`docs/estuary-event.schema.json`。进程内双主体账本在 `internal/estuary`，由 `-listen` 打开，落在 `-state-dir` / `NOEMA_STATE_DIR` 的 `estuary/events.jsonl`。同一目录下 `estuary/index/<subject>.sqlite` 是按主体隔离的文本索引（库 `github.com/yurika0211/estuary/memoryindex`）。不是第三个服务，也不把账本或检索结果注入模型。记忆召回未接入
+- Estuary 契约：`docs/estuary-event.schema.json`。进程内双主体账本在 `internal/estuary`，由 `-listen` 打开，落在 `-state-dir` / `NOEMA_STATE_DIR` 的 `estuary/events.jsonl`。同一目录下 `estuary/index/<subject>.sqlite` 是按主体隔离的文本索引（Noema 自己的 sqlite 投影，不导入私有 estuary 模块）。不是第三个服务，也不把账本或检索结果注入模型。记忆召回未接入
 - 为什么嵌入 SDK、不起 Estuary 服务：`docs/adr/0001-embed-sdk.md`
 - 回合观测：stderr 一行 `component=turn`，只有协议版本、session、run、client_request_id、状态、耗时、首段时间和字节数。不写对话正文
 - 当前 SDK pin **没有** 宿主上下文、审批回传、`ui_delta`。对应方法返回 `unsupported`。
