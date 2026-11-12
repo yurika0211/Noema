@@ -88,6 +88,13 @@ func run(args []string) error {
 			return err
 		}
 		defer ledger.Close()
+		// 缺 RAG_URL / key 时用本地 hash 索引，不因此拒绝 Listen，也不把命中送进模型。
+		index, err := estuary.OpenIndex(*stateDir, nil)
+		if err != nil {
+			return err
+		}
+		defer index.Close()
+		ledger.AttachIndex(index)
 		srv := &transport.Server{
 			Addr:        listenAddr,
 			APIKey:      bindKey,

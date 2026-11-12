@@ -14,7 +14,7 @@
 - Android 文本壳：`apps/android`
 - Web 样品：`apps/web`（由 `-listen` 提供，不是 Lucky 工作台）
 - 角色原则：`characters/hiori/SOUL.md`（初始化写入独立 HomeDir，不是逐轮注入）
-- Estuary 契约：`docs/estuary-event.schema.json`。进程内双主体账本在 `internal/estuary`，由 `-listen` 打开，落在 `-state-dir` / `NOEMA_STATE_DIR` 的 `estuary/events.jsonl`。不是第三个服务，也不把账本注入模型。完成的 chat `done` 会按主体追加 `namespace=event` 记录；记忆召回未接入
+- Estuary 契约：`docs/estuary-event.schema.json`。进程内双主体账本在 `internal/estuary`，由 `-listen` 打开，落在 `-state-dir` / `NOEMA_STATE_DIR` 的 `estuary/events.jsonl`。同一目录下 `estuary/index/<subject>.sqlite` 是按主体隔离的文本索引（Noema 自己的 sqlite 投影，不导入私有 estuary 模块）。不是第三个服务，也不把账本或检索结果注入模型。记忆召回未接入
 - 为什么嵌入 SDK、不起 Estuary 服务：`docs/adr/0001-embed-sdk.md`
 - 回合观测：stderr 一行 `component=turn`，只有协议版本、session、run、client_request_id、状态、耗时、首段时间和字节数。不写对话正文
 - 当前 SDK pin **没有** 宿主上下文、审批回传、`ui_delta`。对应方法返回 `unsupported`。
@@ -69,7 +69,7 @@ GOWORK=off go run ./cmd/noema -capabilities
 - 主体是 `user` 与 `character`（灯織 / `hiori`）。`session_id` 只是会话，不用作 `subject_id`。
 - 同一轮完成的对话（协议 `done`）写两条 `namespace=event`、`kind=chat_turn`，共享信封里的 `event_id`、`session_id`、`seq`。用户记录只有用户消息，角色记录只有助手正文。
 - 按 `subject_id` 读取不会带出另一主体的 payload。`provenance.fictional=true` 原样保存，可过滤，不会升格成现实。
-- 协议重放仍走 `sessions/*.jsonl`。账本不进入 Lucky 上下文，没有召回、删除或过期 API。
+- 协议重放仍走 `sessions/*.jsonl`。账本和主体索引都不进入 Lucky 上下文。`Search(subject_id, query)` 只查该主体的 sqlite；`provenance.fictional=true` 不进现实索引。没有模型召回、删除或过期 API。缺外部向量服务时用本地 hash embedder，`-listen` 不因此失败。
 - 装载时截掉无换行的崩溃残尾。状态目录不能放进 Lucky HomeDir。
 
 ## Android
