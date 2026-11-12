@@ -15,6 +15,7 @@ import (
 
 	"github.com/yurika0211/Noema/internal/adapters/lucky"
 	"github.com/yurika0211/Noema/internal/engine"
+	"github.com/yurika0211/Noema/internal/estuary"
 	"github.com/yurika0211/Noema/internal/eventlog"
 	"github.com/yurika0211/Noema/internal/observe"
 	"github.com/yurika0211/Noema/internal/transport"
@@ -82,12 +83,18 @@ func run(args []string) error {
 			return err
 		}
 		defer logStore.Close()
+		ledger, err := estuary.Open(*stateDir)
+		if err != nil {
+			return err
+		}
+		defer ledger.Close()
 		srv := &transport.Server{
 			Addr:        listenAddr,
 			APIKey:      bindKey,
 			CharacterID: "hiori",
 			Engine:      adapter,
 			Log:         logStore,
+			Ledger:      ledger,
 			Observe:     observe.New(os.Stderr),
 		}
 		errCh := make(chan error, 1)

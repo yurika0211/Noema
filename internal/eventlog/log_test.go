@@ -393,6 +393,34 @@ func TestDiskStoreWriteFailureKeepsSeqAndFile(t *testing.T) {
 	}
 }
 
+func TestEventIDsDifferAcrossSessionsAtSameSeq(t *testing.T) {
+	s := New()
+	a, err := s.Append("sess-a", protocol.Envelope{Type: protocol.TypeContent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Append("sess-b", protocol.Envelope{Type: protocol.TypeContent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Seq != 1 || b.Seq != 1 {
+		t.Fatalf("seq a=%d b=%d", a.Seq, b.Seq)
+	}
+	if a.EventID == "" || a.EventID == b.EventID {
+		t.Fatalf("event ids collided: %q %q", a.EventID, b.EventID)
+	}
+	if a.EventID == "evt_1" || b.EventID == "evt_1" {
+		t.Fatalf("seq-only id: %q %q", a.EventID, b.EventID)
+	}
+	kept, err := s.Append("sess-a", protocol.Envelope{Type: protocol.TypeDone, EventID: "evt_existing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept.EventID != "evt_existing" {
+		t.Fatalf("existing id rewritten: %q", kept.EventID)
+	}
+}
+
 func TestOpenRequiresDir(t *testing.T) {
 	if _, err := Open("  "); err == nil {
 		t.Fatal("expected error for empty state dir")

@@ -2,6 +2,7 @@ package eventlog
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -104,7 +105,8 @@ func (s *Store) Append(sessionID string, env protocol.Envelope) (protocol.Envelo
 	}
 	env.Seq = log.seq + 1
 	if env.EventID == "" {
-		env.EventID = fmt.Sprintf("evt_%d", env.Seq)
+		// seq 只在会话内单调。event_id 要跨会话全局唯一，已有 id 保持不变。
+		env.EventID = newEventID(sessionID, env.Seq)
 	}
 	env.SessionID = sessionID
 	if env.Protocol == "" {
@@ -415,6 +417,35 @@ func fileName(sessionID string) string {
 		safe = prefix + "-" + hex.EncodeToString(sum[:8])
 	}
 	return safe + ".jsonl"
+}
+
+// newEventID 用会话前缀加随机后缀。两个会话的 seq=1 不会撞成同一个 id。
+func newEventID(sessionID string, seq int64) string {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		sum := sha256.Sum256([]byte(fmt.Sprintf("%s/%d/%d", sessionID, seq, time.Now().UnixNano())))
+		copy(buf[:], sum[:8])
+	}
+	return "evt_" + fileToken(sessionID) + "_" + fmt.Sprintf("%d", seq) + "_" + hex.EncodeToString(buf[:])
+}
+
+func fileToken(sessionID string) string {
+	safe := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			return r
+		default:
+			return -1
+		}
+	}, sessionID)
+	if len(safe) > 24 {
+		safe = safe[:24]
+	}
+	if safe == "" {
+		sum := sha256.Sum256([]byte(sessionID))
+		safe = hex.EncodeToString(sum[:4])
+	}
+	return safe
 }
 
 func hashInput(message string) string {
