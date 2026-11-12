@@ -16,6 +16,7 @@ import (
 
 	noemaweb "github.com/yurika0211/Noema/apps/web"
 	"github.com/yurika0211/Noema/internal/engine"
+	"github.com/yurika0211/Noema/internal/estuary"
 	"github.com/yurika0211/Noema/internal/eventlog"
 	"github.com/yurika0211/Noema/internal/observe"
 	"github.com/yurika0211/Noema/internal/protocol"
@@ -43,6 +44,7 @@ type Server struct {
 	CharacterID string
 	Engine      engine.Engine
 	Log         *eventlog.Store
+	Ledger      *estuary.Ledger
 	Observe     *observe.Logger
 
 	mu      sync.Mutex
@@ -353,7 +355,7 @@ func (s *Server) startChat(ctx context.Context, conn *wsConn, sessionID string, 
 	s.turns.Add(1)
 	go func() {
 		defer s.turns.Done()
-		s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, events)
+		s.forward(ctx, conn, sessionID, runID, env.ClientRequestID, message, events)
 	}()
 	return runID, nil
 }
@@ -388,10 +390,11 @@ func errClass(err error) string {
 	}
 }
 
-func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, clientRequestID string, events <-chan engine.RunEvent) {
+func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, clientRequestID, userMessage string, events <-chan engine.RunEvent) {
 	turn := s.Observe.Start(protocol.Version, sessionID, runID, clientRequestID)
 	status := "cancelled"
 	class := "cancelled"
+	var assistant strings.Builder
 	for {
 		select {
 		case <-ctx.Done():
@@ -413,9 +416,13 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 			switch ev.Type {
 			case engine.EventContent:
 				visible = len(ev.Content)
+				assistant.WriteString(ev.Content)
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
 			case engine.EventDone:
 				visible = len(ev.Content)
+				if ev.Content != "" {
+					assistant.WriteString(ev.Content)
+				}
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
 				status, class = "done", "-"
 			case engine.EventError:
@@ -441,6 +448,9 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 				s.Observe.Finish(turn, "error", "log_append")
 				return
 			}
+			if ev.Type == engine.EventDone {
+				s.appendChatTurn(stored, userMessage, assistant.String())
+			}
 			if err := writeJSON(conn, stored); err != nil {
 				s.Observe.Finish(turn, status, class)
 				return
@@ -451,6 +461,22 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 			}
 		}
 	}
+}
+
+// appendChatTurn 把完成的一轮写进双主体账本。
+// 协议重放仍走 eventlog；这里不把账本内容送回模型，也不把 replay_complete / ping 记成对话。
+func (s *Server) appendChatTurn(stored protocol.Envelope, userMessage, assistantText string) {
+	if s.Ledger == nil || stored.Type != protocol.TypeDone {
+		return
+	}
+	if strings.TrimSpace(assistantText) == "" {
+		assistantText = estuary.AssistantText(stored.Payload)
+	}
+	_, _ = estuary.AppendChatTurn(s.Ledger, estuary.ChatTurnInput{
+		Envelope:      stored,
+		UserMessage:   userMessage,
+		AssistantText: assistantText,
+	})
 }
 
 type wsConn struct {
