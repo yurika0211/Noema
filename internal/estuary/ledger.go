@@ -2,6 +2,7 @@ package estuary
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -80,6 +81,7 @@ type Ledger struct {
 	// 只给测试用，用来露出半截 chat_turn，不回滚已写入的行。
 	failAfter int
 	failArmed bool
+	index     *Index
 }
 
 // Open 打开或创建 stateDir 下的账本，并截掉无换行的崩溃残尾。
@@ -107,6 +109,31 @@ func Open(stateDir string) (*Ledger, error) {
 	}
 	led.file = file
 	return led, nil
+}
+
+// AttachIndex 让账本在追加成功后把非虚构记录投进主体索引。
+// 索引未挂上时只写 jsonl。检索不进入模型。
+func (l *Ledger) AttachIndex(idx *Index) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.index = idx
+}
+
+// Search 只返回该主体索引里的命中。
+func (l *Ledger) Search(ctx context.Context, subjectID, query string) ([]Hit, error) {
+	if l == nil {
+		return nil, fmt.Errorf("estuary: nil ledger")
+	}
+	l.mu.Lock()
+	idx := l.index
+	l.mu.Unlock()
+	if idx == nil {
+		return nil, fmt.Errorf("estuary: index is not attached")
+	}
+	return idx.Search(ctx, subjectID, query)
 }
 
 // Dir 返回 Noema 状态目录（含 estuary/ 的父目录）。

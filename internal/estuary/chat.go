@@ -1,6 +1,7 @@
 package estuary
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -74,6 +75,9 @@ func AppendChatTurn(led *Ledger, in ChatTurnInput) ([]Record, error) {
 		return nil, err
 	}
 	written = append(written, stored)
+	if err := led.project(stored); err != nil {
+		return written, err
+	}
 
 	assistant := strings.TrimSpace(in.AssistantText)
 	if assistant == "" {
@@ -105,7 +109,23 @@ func AppendChatTurn(led *Ledger, in ChatTurnInput) ([]Record, error) {
 		return written, err
 	}
 	written = append(written, stored)
+	if err := led.project(stored); err != nil {
+		return written, err
+	}
 	return written, nil
+}
+
+func (l *Ledger) project(rec Record) error {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	idx := l.index
+	l.mu.Unlock()
+	if idx == nil {
+		return nil
+	}
+	return idx.Project(context.Background(), rec)
 }
 
 // UserText 从 chat 请求 payload 取出用户消息。解析失败返回空串。

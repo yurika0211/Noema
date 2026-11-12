@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/gorilla/websocket v1.5.3
+	github.com/yurika0211/estuary v0.0.0-20261112175710-382a6215a83f
 	github.com/yurika0211/luckyagent-app v0.4.3-0.20261029222614-74ba20f1d92e
 )
 
