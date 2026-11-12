@@ -420,11 +420,41 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
 			case engine.EventDone:
 				visible = len(ev.Content)
-				if ev.Content != "" {
-					assistant.WriteString(ev.Content)
+				if visible > 0 {
+					s.Observe.FirstByte(turn, visible)
 				}
+				assistantText := mergeAssistant(assistant.String(), ev.Content)
 				out.Payload = eventlog.MustPayload(protocol.ContentPayload{Text: ev.Content})
 				status, class = "done", "-"
+				stored, err := s.Log.Append(sessionID, out)
+				if err != nil {
+					s.Observe.Finish(turn, "error", "log_append")
+					return
+				}
+				if err := s.appendChatTurn(stored, userMessage, assistantText); err != nil {
+					// done 已在 eventlog。仍发给客户端，再标出账本失败，不把错误吞掉。
+					class = "ledger_append"
+					if writeErr := writeJSON(conn, stored); writeErr != nil {
+						s.Observe.Finish(turn, "error", class)
+						return
+					}
+					_ = writeJSON(conn, protocol.Envelope{
+						Type:            protocol.TypeError,
+						SessionID:       sessionID,
+						RunID:           runID,
+						ClientRequestID: clientRequestID,
+						CharacterID:     s.CharacterID,
+						Payload:         eventlog.MustPayload(protocol.ErrorPayload{Error: "estuary ledger append failed"}),
+					})
+					s.Observe.Finish(turn, "error", class)
+					return
+				}
+				if err := writeJSON(conn, stored); err != nil {
+					s.Observe.Finish(turn, status, class)
+					return
+				}
+				s.Observe.Finish(turn, status, class)
+				return
 			case engine.EventError:
 				msg := "turn failed"
 				if ev.Err != nil {
@@ -448,9 +478,6 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 				s.Observe.Finish(turn, "error", "log_append")
 				return
 			}
-			if ev.Type == engine.EventDone {
-				s.appendChatTurn(stored, userMessage, assistant.String())
-			}
 			if err := writeJSON(conn, stored); err != nil {
 				s.Observe.Finish(turn, status, class)
 				return
@@ -463,20 +490,34 @@ func (s *Server) forward(ctx context.Context, conn *wsConn, sessionID, runID, cl
 	}
 }
 
+// mergeAssistant 避免把 done 里的全文再拼到已流式缓冲上。
+// done 正文已包含缓冲（全文或带此前分片的后缀）时用 done 作为完整助手文本；否则只追加增量。
+func mergeAssistant(streamed, done string) string {
+	if done == "" {
+		return streamed
+	}
+	if streamed == "" || strings.Contains(done, streamed) {
+		return done
+	}
+	return streamed + done
+}
+
 // appendChatTurn 把完成的一轮写进双主体账本。
 // 协议重放仍走 eventlog；这里不把账本内容送回模型，也不把 replay_complete / ping 记成对话。
-func (s *Server) appendChatTurn(stored protocol.Envelope, userMessage, assistantText string) {
+// 角色行在用户行之后失败时，已写入的用户行保留，错误返回给调用方。
+func (s *Server) appendChatTurn(stored protocol.Envelope, userMessage, assistantText string) error {
 	if s.Ledger == nil || stored.Type != protocol.TypeDone {
-		return
+		return nil
 	}
 	if strings.TrimSpace(assistantText) == "" {
 		assistantText = estuary.AssistantText(stored.Payload)
 	}
-	_, _ = estuary.AppendChatTurn(s.Ledger, estuary.ChatTurnInput{
+	_, err := estuary.AppendChatTurn(s.Ledger, estuary.ChatTurnInput{
 		Envelope:      stored,
 		UserMessage:   userMessage,
 		AssistantText: assistantText,
 	})
+	return err
 }
 
 type wsConn struct {

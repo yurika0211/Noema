@@ -413,6 +413,150 @@ func TestDoneAppendsDualSubjectLedgerWithoutReplayOrPing(t *testing.T) {
 	}
 }
 
+func TestDoneWithFullTextDoesNotDoubleLedgerAssistant(t *testing.T) {
+	led, err := estuary.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer led.Close()
+	eng := &stubEngine{
+		sessionID: "sess-full",
+		events: []engine.RunEvent{
+			{Type: engine.EventContent, Content: "灯"},
+			{Type: engine.EventContent, Content: "織"},
+			{Type: engine.EventDone, Content: "灯織"},
+		},
+	}
+	srv := &Server{Engine: eng, Log: eventlog.New(), Ledger: led, CharacterID: "hiori"}
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv.handleWS(w, r)
+	}))
+	defer httpSrv.Close()
+
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(httpSrv.URL, "http")+"/v1/ws?session=sess-full", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = readEnv(t, conn)
+	payload, _ := json.Marshal(protocol.ChatPayload{Message: "你好"})
+	if err := conn.WriteJSON(protocol.Envelope{
+		Protocol: protocol.Version, Type: protocol.TypeChat, ClientRequestID: "req-full", Payload: payload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var done protocol.Envelope
+	for {
+		ev := readEnv(t, conn)
+		if ev.Type == protocol.TypeDone {
+			done = ev
+			break
+		}
+	}
+	if !srv.WaitTurns(2 * time.Second) {
+		t.Fatal("forward did not finish")
+	}
+	views, err := led.Get(done.EventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, _ := views[estuary.SubjectCharacter].Payload["text"].(string)
+	if text != "灯織" {
+		t.Fatalf("assistant text=%q", text)
+	}
+}
+
+func TestLedgerAppendFailureIsVisible(t *testing.T) {
+	var buf bytes.Buffer
+	led, err := estuary.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer led.Close()
+	// 用户行写入后角色行失败：不回滚，但错误必须出现在观测和后续 error 帧。
+	led.ArmFailAfter(1)
+	eng := &stubEngine{
+		sessionID: "sess-fail",
+		events: []engine.RunEvent{
+			{Type: engine.EventContent, Content: "灯織"},
+			{Type: engine.EventDone},
+		},
+	}
+	srv := &Server{Engine: eng, Log: eventlog.New(), Ledger: led, CharacterID: "hiori", Observe: observe.New(&buf)}
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv.handleWS(w, r)
+	}))
+	defer httpSrv.Close()
+
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(httpSrv.URL, "http")+"/v1/ws?session=sess-fail", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = readEnv(t, conn)
+	payload, _ := json.Marshal(protocol.ChatPayload{Message: "你好"})
+	if err := conn.WriteJSON(protocol.Envelope{
+		Protocol: protocol.Version, Type: protocol.TypeChat, ClientRequestID: "req-fail", Payload: payload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var done protocol.Envelope
+	var sawError bool
+	for {
+		ev := readEnv(t, conn)
+		switch ev.Type {
+		case protocol.TypeDone:
+			done = ev
+		case protocol.TypeError:
+			sawError = true
+			if !strings.Contains(string(ev.Payload), "estuary ledger append failed") {
+				t.Fatalf("error payload=%s", ev.Payload)
+			}
+		}
+		if sawError && done.EventID != "" {
+			break
+		}
+	}
+	if !srv.WaitTurns(2 * time.Second) {
+		t.Fatal("forward did not finish")
+	}
+	if !strings.Contains(buf.String(), "err=ledger_append") {
+		t.Fatalf("observe missing ledger_append: %s", buf.String())
+	}
+	views, err := led.Get(done.EventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := views[estuary.SubjectCharacter]; ok {
+		t.Fatal("character row written after injected failure")
+	}
+	user, ok := views[estuary.SubjectUser]
+	if !ok {
+		t.Fatal("user row missing")
+	}
+	if text, _ := user.Payload["text"].(string); text != "你好" {
+		t.Fatalf("user text=%v", user.Payload)
+	}
+	if strings.Contains(fmtPayload(user), "灯織") {
+		t.Fatalf("partial user row mixed character text: %v", user.Payload)
+	}
+}
+
+func TestMergeAssistant(t *testing.T) {
+	if got := mergeAssistant("灯織", "灯織"); got != "灯織" {
+		t.Fatalf("full duplicate: %q", got)
+	}
+	if got := mergeAssistant("灯", "灯織"); got != "灯織" {
+		t.Fatalf("done contains buffer: %q", got)
+	}
+	if got := mergeAssistant("灯織", "。"); got != "灯織。" {
+		t.Fatalf("delta: %q", got)
+	}
+	if got := mergeAssistant("灯織", ""); got != "灯織" {
+		t.Fatalf("empty done: %q", got)
+	}
+}
+
 func fmtPayload(rec estuary.Record) string {
 	raw, _ := json.Marshal(rec.Payload)
 	return string(raw)

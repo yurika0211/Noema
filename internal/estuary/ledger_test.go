@@ -283,6 +283,48 @@ func TestAppendChatTurnSharesEventIDWithoutMixingPayload(t *testing.T) {
 	}
 }
 
+func TestGetKeepsDistinctEventIDsFromTwoSessions(t *testing.T) {
+	led, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer led.Close()
+	now := time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
+	seq := int64(1)
+	for _, id := range []string{"evt_sess-a_1_aa", "evt_sess-b_1_bb"} {
+		session := "sess-a"
+		if strings.Contains(id, "sess-b") {
+			session = "sess-b"
+		}
+		if _, err := led.Append(Record{
+			SubjectID: SubjectUser,
+			Namespace: NamespaceEvent,
+			EventID:   id,
+			SessionID: session,
+			Seq:       &seq,
+			Kind:      KindChatTurn,
+			CreatedAt: now,
+			Payload:   map[string]any{"text": session},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, err := led.Get("evt_sess-a_1_aa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := led.Get("evt_sess-b_1_bb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if textOf(a[SubjectUser]) != "sess-a" || textOf(b[SubjectUser]) != "sess-b" {
+		t.Fatalf("get mixed sessions a=%v b=%v", a[SubjectUser].Payload, b[SubjectUser].Payload)
+	}
+	if _, ok := a[SubjectUser].Payload["text"]; !ok || len(b) != 1 {
+		t.Fatalf("views a=%d b=%d", len(a), len(b))
+	}
+}
+
 func TestRejectsSchemaViolationsAndEmptyStateDir(t *testing.T) {
 	if _, err := Open("  "); err == nil {
 		t.Fatal("empty state dir must fail")

@@ -76,6 +76,10 @@ type Ledger struct {
 	records  []Record
 	closed   bool
 	writeErr error
+	// failAfter 让接下来第 N 次成功写入之后的下一次 Append 失败（N=0 表示下一次就失败）。
+	// 只给测试用，用来露出半截 chat_turn，不回滚已写入的行。
+	failAfter int
+	failArmed bool
 }
 
 // Open 打开或创建 stateDir 下的账本，并截掉无换行的崩溃残尾。
@@ -125,6 +129,20 @@ func (l *Ledger) Path() string {
 	return l.path
 }
 
+// ArmFailAfter 让接下来成功写入 n 条之后的下一次 Append 失败。n=0 时下一次就失败。
+func (l *Ledger) ArmFailAfter(n int) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if n < 0 {
+		n = 0
+	}
+	l.failAfter = n
+	l.failArmed = true
+}
+
 // Append 追加一条记录。本切片只追加，没有删除或过期。
 func (l *Ledger) Append(rec Record) (Record, error) {
 	if l == nil {
@@ -148,6 +166,13 @@ func (l *Ledger) Append(rec Record) (Record, error) {
 	}
 	if l.file == nil {
 		return Record{}, fmt.Errorf("estuary: ledger file is not open")
+	}
+	if l.failArmed {
+		if l.failAfter == 0 {
+			l.failArmed = false
+			return Record{}, fmt.Errorf("estuary: append record: injected failure")
+		}
+		l.failAfter--
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
