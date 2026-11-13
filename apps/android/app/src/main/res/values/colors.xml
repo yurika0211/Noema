@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 与 apps/web/index.html :root 手对齐，没有生成器 -->
     <color name="noema_bg">#f4f1ea</color>
     <color name="noema_ink">#1c1a16</color>
     <color name="noema_accent">#355e4b</color>
+    <color name="noema_paper">#fbf8f1</color>
+    <color name="noema_mute">#7a756c</color>
+    <color name="noema_you">#ebe4d6</color>
+    <color name="noema_stop">#7a3a32</color>
     <color name="ic_launcher_background">#355e4b</color>
 </resources>
